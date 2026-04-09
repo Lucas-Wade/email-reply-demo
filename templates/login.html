@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>登录 — 询盘回复系统</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <style>
+    :root { --brand: #1a3a5c; }
+    body {
+      background: #f0f2f5;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .login-card {
+      width: 100%;
+      max-width: 420px;
+      border: none;
+      box-shadow: 0 4px 24px rgba(0,0,0,.10);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    .login-header {
+      background: var(--brand);
+      padding: 2rem 2rem 1.6rem;
+      text-align: center;
+      color: #fff;
+    }
+    .login-header .brand-icon { font-size: 2.2rem; opacity: .9; }
+    .login-header h5 { font-weight: 700; letter-spacing: .02em; margin-top: .5rem; margin-bottom: .2rem; }
+    .login-header p { opacity: .6; font-size: .82rem; margin: 0; }
+    .login-body { padding: 2rem; }
+    .form-control:focus { border-color: var(--brand); box-shadow: 0 0 0 .2rem rgba(26,58,92,.15); }
+    .btn-login { background: var(--brand); border-color: var(--brand); font-weight: 600; }
+    .btn-login:hover { background: #2a5080; border-color: #2a5080; }
+    .login-footer { font-size: .78rem; text-align: center; color: #adb5bd; padding-bottom: 1.5rem; }
+    .provider-badge { font-size: .75rem; color: #0d6efd; }
+  </style>
+</head>
+<body>
+
+<div class="login-card card">
+  <div class="login-header">
+    <div class="brand-icon"><i class="bi bi-envelope-check-fill"></i></div>
+    <h5>询盘回复系统</h5>
+    <p>Foreign Trade Inquiry Assistant</p>
+  </div>
+
+  <div class="login-body">
+    {% if error %}
+    <div class="alert alert-danger py-2 small mb-3">
+      <i class="bi bi-exclamation-circle me-1"></i>{{ error }}
+    </div>
+    {% endif %}
+
+    <form method="post" action="/login" id="login-form">
+      <div class="mb-3">
+        <label class="form-label small fw-semibold text-muted">邮箱地址</label>
+        <div class="input-group">
+          <span class="input-group-text bg-white"><i class="bi bi-envelope text-muted"></i></span>
+          <input type="email" name="email" id="email-input" class="form-control"
+                 value="{{ email_val or '' }}" required autofocus>
+        </div>
+        <div class="mt-1" id="provider-hint" style="min-height:1.2rem"></div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label small fw-semibold text-muted">邮箱密码</label>
+        <div class="input-group">
+          <span class="input-group-text bg-white"><i class="bi bi-lock text-muted"></i></span>
+          <input type="password" name="password" id="pw-input" class="form-control" required>
+          <button type="button" class="btn btn-outline-secondary px-2" onclick="togglePw()">
+            <i class="bi bi-eye" id="pw-eye"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- 隐藏字段：自动填充 IMAP -->
+      <input type="hidden" name="imap_host" id="imap-host-val" value="{{ imap_host_val or '' }}">
+      <input type="hidden" name="imap_port" id="imap-port-val" value="{{ imap_port_val or 993 }}">
+
+      <!-- 折叠：手动设置（自动识别失败时使用） -->
+      <div class="mb-3">
+        <a href="#" class="small text-muted" data-bs-toggle="collapse"
+           data-bs-target="#imap-advanced" id="advanced-toggle">
+          <i class="bi bi-chevron-right me-1" id="adv-icon"></i>服务器设置（自动识别失败时展开）
+        </a>
+        <div class="collapse {% if imap_host_val %}show{% endif %}" id="imap-advanced">
+          <div class="border rounded p-3 mt-2 bg-light">
+            <div class="row g-2">
+              <div class="col-8">
+                <label class="form-label small text-muted mb-1">IMAP 服务器</label>
+                <input type="text" id="imap-host-manual" class="form-control form-control-sm"
+                       value="{{ imap_host_val or '' }}">
+              </div>
+              <div class="col-4">
+                <label class="form-label small text-muted mb-1">端口</label>
+                <input type="number" id="imap-port-manual" class="form-control form-control-sm"
+                       value="{{ imap_port_val or 993 }}">
+              </div>
+            </div>
+            <div class="text-muted mt-2" style="font-size:.75rem">
+              常见格式：imap.yourcompany.com，端口通常为 993
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-login btn-primary w-100" id="login-btn">
+        <i class="bi bi-box-arrow-in-right me-2"></i>登录
+      </button>
+    </form>
+
+    <div class="text-center mt-3 text-muted small">
+      <i class="bi bi-shield-check me-1"></i>
+      直接使用您的企业邮箱账号登录，无需单独注册
+    </div>
+  </div>
+
+  <div class="login-footer">询盘自动回复系统 · 内部工具</div>
+</div>
+
+<script>
+// 主流邮箱服务商 IMAP 自动识别（与后端 auth.py 保持一致）
+const PROVIDERS = {
+  "exmail.qq.com":   ["imap.exmail.qq.com",  993, "腾讯企业邮箱"],
+  "qq.com":          ["imap.qq.com",          993, "QQ 邮箱"],
+  "foxmail.com":     ["imap.foxmail.com",      993, "Foxmail"],
+  "163.com":         ["imap.163.com",          993, "网易 163"],
+  "126.com":         ["imap.126.com",          993, "网易 126"],
+  "yeah.net":        ["imap.yeah.net",          993, "网易 yeah"],
+  "aliyun.com":      ["imap.aliyun.com",       993, "阿里云邮箱"],
+  "sina.com":        ["imap.sina.com",         993, "新浪邮箱"],
+  "139.com":         ["imap.139.com",          993, "139 邮箱"],
+  "gmail.com":       ["imap.gmail.com",        993, "Gmail"],
+  "outlook.com":     ["outlook.office365.com", 993, "Outlook"],
+  "hotmail.com":     ["outlook.office365.com", 993, "Hotmail"],
+  "live.com":        ["outlook.office365.com", 993, "Live Mail"],
+  "yahoo.com":       ["imap.mail.yahoo.com",   993, "Yahoo Mail"],
+};
+
+const emailInput  = document.getElementById('email-input');
+const hostHidden  = document.getElementById('imap-host-val');
+const portHidden  = document.getElementById('imap-port-val');
+const hostManual  = document.getElementById('imap-host-manual');
+const portManual  = document.getElementById('imap-port-manual');
+const hint        = document.getElementById('provider-hint');
+
+function detectProvider(email) {
+  const domain = email.split('@')[1]?.toLowerCase();
+  return domain ? PROVIDERS[domain] : null;
+}
+
+emailInput.addEventListener('input', () => {
+  const p = detectProvider(emailInput.value);
+  if (p) {
+    hostHidden.value = p[0];
+    portHidden.value = p[1];
+    hint.innerHTML = `<span class="provider-badge"><i class="bi bi-check-circle-fill text-success me-1"></i>已识别：${p[2]}，自动配置 IMAP</span>`;
+    if (!hostManual.value) { hostManual.value = p[0]; portManual.value = p[1]; }
+  } else if (emailInput.value.includes('@')) {
+    const domain = emailInput.value.split('@')[1];
+    hostHidden.value = `mail.${domain}`;
+    portHidden.value = 993;
+    hint.innerHTML = `<span class="text-muted small"><i class="bi bi-info-circle me-1"></i>未知服务商，将尝试 mail.${domain}，失败请手动填写</span>`;
+  } else {
+    hint.innerHTML = '';
+    hostHidden.value = '';
+  }
+});
+
+// 手动设置同步到隐藏字段
+hostManual.addEventListener('input', () => hostHidden.value = hostManual.value);
+portManual.addEventListener('input', () => portHidden.value = portManual.value);
+
+// 折叠箭头旋转
+document.getElementById('imap-advanced').addEventListener('show.bs.collapse', () => {
+  document.getElementById('adv-icon').className = 'bi bi-chevron-down me-1';
+});
+document.getElementById('imap-advanced').addEventListener('hide.bs.collapse', () => {
+  document.getElementById('adv-icon').className = 'bi bi-chevron-right me-1';
+});
+
+// 登录时分阶段显示进度
+document.getElementById('login-form').addEventListener('submit', () => {
+  const btn = document.getElementById('login-btn');
+  btn.disabled = true;
+  const phases = ['连接服务器中…', '验证身份中…', '初始化数据…'];
+  let i = 0;
+  function setPhase() {
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>${phases[i]}`;
+  }
+  setPhase();
+  const timer = setInterval(() => {
+    i = Math.min(i + 1, phases.length - 1);
+    setPhase();
+    if (i === phases.length - 1) clearInterval(timer);
+  }, 1800);
+});
+
+function togglePw() {
+  const inp = document.getElementById('pw-input');
+  const eye = document.getElementById('pw-eye');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+  eye.className = inp.type === 'password' ? 'bi bi-eye' : 'bi bi-eye-slash';
+}
+
+// 页面加载时如果已有邮箱值，触发一次识别
+if (emailInput.value) emailInput.dispatchEvent(new Event('input'));
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}{{ customer.domain }} — 客户档案{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center gap-2 mb-3">
+  <a href="/customers" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i>返回客户列表
+  </a>
+  <h6 class="mb-0 fw-semibold ms-1">{{ customer.company_name or customer.domain }}</h6>
+</div>
+
+<div class="row g-3 mb-4">
+
+  <!-- 客户信息卡 -->
+  <div class="col-lg-4">
+    <div class="card h-100">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-building me-2 text-secondary"></i>客户信息
+      </div>
+      <div class="card-body">
+        <dl class="row small g-1">
+          <dt class="col-5 text-muted">邮件域名</dt>
+          <dd class="col-7 mb-0 fw-semibold">@{{ customer.domain }}</dd>
+          <dt class="col-5 text-muted">公司名称</dt>
+          <dd class="col-7 mb-0">{{ customer.company_name or '未知' }}</dd>
+          <dt class="col-5 text-muted">国家</dt>
+          <dd class="col-7 mb-0">{{ customer.country or '未知' }}</dd>
+          <dt class="col-5 text-muted">买家类型</dt>
+          <dd class="col-7 mb-0">
+            {{ {'end-user':'终端用户','trader':'贸易商','distributor':'经销商',
+                'agent':'代理商'}.get(customer.buyer_type, customer.buyer_type or '未知') }}
+          </dd>
+          <dt class="col-5 text-muted">首次联系</dt>
+          <dd class="col-7 mb-0">{{ (customer.first_seen or '')[:10] }}</dd>
+          <dt class="col-5 text-muted">最近联系</dt>
+          <dd class="col-7 mb-0">{{ (customer.last_seen or '')[:10] }}</dd>
+        </dl>
+        <hr class="my-3">
+        <div class="row text-center g-2">
+          <div class="col-4">
+            <div class="fs-4 fw-bold text-primary">{{ customer.inquiry_count or 0 }}</div>
+            <div class="text-muted" style="font-size:.75rem">询盘</div>
+          </div>
+          <div class="col-4">
+            <div class="fs-4 fw-bold text-success">{{ customer.quote_count or 0 }}</div>
+            <div class="text-muted" style="font-size:.75rem">已报价</div>
+          </div>
+          <div class="col-4">
+            <div class="fs-4 fw-bold text-info">{{ customer.reply_count or 0 }}</div>
+            <div class="text-muted" style="font-size:.75rem">跟进次数</div>
+          </div>
+        </div>
+        {% if customer.notes %}
+        <hr class="my-3">
+        <p class="small text-muted mb-0">{{ customer.notes }}</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- 历史邮件 -->
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-clock-history me-2 text-secondary"></i>往来历史
+        <span class="text-muted small ms-1">（{{ emails|length }} 封）</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table align-middle mb-0" style="font-size:.86rem">
+          <thead class="table-light">
+            <tr>
+              <th>主题</th>
+              <th>分类</th>
+              <th>状态</th>
+              <th>时间</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for e in emails %}
+            <tr>
+              <td class="text-truncate" style="max-width:240px" title="{{ e.subject }}">
+                {{ e.subject }}
+              </td>
+              <td>
+                {% if e.category == 'valid_inquiry' %}
+                  <span class="badge badge-inquiry">询盘</span>
+                {% elif e.category == 'spam' %}
+                  <span class="badge badge-spam">垃圾</span>
+                {% else %}
+                  <span class="badge badge-other">其他</span>
+                {% endif %}
+              </td>
+              <td>
+                {% set s = e.draft_status or e.status %}
+                {% if s in ['pending','drafted'] %}
+                  <span class="s-pending small">待审核</span>
+                {% elif s == 'sent' %}
+                  <span class="s-sent small">已发送</span>
+                {% elif s == 'ignored' %}
+                  <span class="s-ignored small">已忽略</span>
+                {% else %}
+                  <span class="text-muted small">{{ s }}</span>
+                {% endif %}
+              </td>
+              <td class="text-muted small text-nowrap">
+                {{ (e.received_at or '')[:10] }}
+              </td>
+              <td>
+                {% if e.draft_id %}
+                <a href="/draft/{{ e.draft_id }}" class="btn btn-sm btn-outline-primary px-2">
+                  <i class="bi bi-pencil-square"></i>
+                </a>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="5" class="text-center text-muted py-4">暂无邮件记录</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

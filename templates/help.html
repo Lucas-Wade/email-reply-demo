@@ -1,0 +1,338 @@
+{% extends "base.html" %}
+{% block title %}使用文档 — 询盘回复系统{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center gap-2 mb-4">
+  <h6 class="fw-semibold mb-0"><i class="bi bi-question-circle me-2"></i>使用文档</h6>
+  <span class="text-muted small">· 系统操作指南 v0.3</span>
+</div>
+
+<div class="row g-3">
+
+  <!-- 左侧目录 -->
+  <div class="col-lg-3 d-none d-lg-block">
+    <div class="card sticky-top" style="top:1rem">
+      <div class="card-body py-2 px-3">
+        <p class="text-muted small fw-semibold mb-2 mt-1">目录</p>
+        <nav class="nav flex-column gap-1" style="font-size:.85rem">
+          <a class="nav-link py-1 px-0 text-dark" href="#overview">系统概览</a>
+          <a class="nav-link py-1 px-0 text-dark" href="#first-run">首次运行</a>
+          <a class="nav-link py-1 px-0 text-dark" href="#inquiries">询盘处理</a>
+          <a class="nav-link py-1 px-0 text-dark" href="#draft">草稿审核</a>
+          <a class="nav-link py-1 px-0 text-dark" href="#followups">跟进提醒</a>
+          <a class="nav-link py-1 px-0 text-dark" href="#customers">客户档案</a>
+          <a class="nav-link py-1 px-0 text-dark" href="#rules">黑白名单</a>
+          <a class="nav-link py-1 px-0 text-dark" href="#analytics">数据分析</a>
+          <a class="nav-link py-1 px-0 text-dark" href="#bgcheck">背景调查</a>
+          <a class="nav-link py-1 px-0 text-dark" href="#faq">常见问题</a>
+          <a class="nav-link py-1 px-0 text-dark" href="#env">环境变量</a>
+        </nav>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右侧内容 -->
+  <div class="col-lg-9">
+
+    <!-- 系统概览 -->
+    <div class="card mb-3" id="overview">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-diagram-3 me-2 text-primary"></i>系统概览
+      </div>
+      <div class="card-body">
+        <p class="mb-3">本系统自动读取企业邮箱中的新邮件，通过 AI 三层分类判断是否为有效询盘，并自动生成回复草稿，等待人工审核后一键发送。</p>
+        <div class="row g-3 text-center">
+          {% for step, icon, color, desc in [
+            ('收到邮件', 'bi-envelope-arrow-down', 'primary', 'IMAP 自动拉取'),
+            ('AI 分类', 'bi-cpu', 'info', '三层过滤规则'),
+            ('生成草稿', 'bi-file-earmark-text', 'warning', '匹配产品 + 多语言'),
+            ('人工审核', 'bi-person-check', 'success', '修改后一键发送'),
+          ] %}
+          <div class="col-6 col-md-3">
+            <div class="rounded-3 p-3 bg-light">
+              <i class="bi {{ icon }} fs-3 text-{{ color }}"></i>
+              <div class="fw-semibold small mt-1">{{ step }}</div>
+              <div class="text-muted" style="font-size:.75rem">{{ desc }}</div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="alert alert-info py-2 mt-3 small mb-0">
+          <i class="bi bi-clock me-1"></i>
+          系统默认每 <strong>5 分钟</strong>自动检查一次邮件，也可点击导航栏"检查邮件"按钮立即触发。
+        </div>
+      </div>
+    </div>
+
+    <!-- 首次运行 -->
+    <div class="card mb-3" id="first-run">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-rocket-takeoff me-2 text-success"></i>首次运行
+      </div>
+      <div class="card-body">
+        <ol class="mb-0" style="line-height:2">
+          <li>复制 <code>.env.example</code> 为 <code>.env</code>，填入邮箱账号、API Key 等配置</li>
+          <li>设置 <code>ADMIN_EMAIL</code> 和 <code>ADMIN_PASSWORD</code>（首次启动自动创建管理员账号）</li>
+          <li>运行命令启动服务：
+            <pre class="bg-light rounded p-2 mt-1 mb-1" style="font-size:.82rem">venv/Scripts/python -m uvicorn main:app --port 8000</pre>
+          </li>
+          <li>浏览器访问 <code>http://localhost:8000</code>，用管理员邮箱和密码登录</li>
+          <li>登录后立即前往右上角用户菜单 → <strong>修改密码</strong>，更换初始密码</li>
+          <li>点击导航栏"检查邮件"测试邮箱连接是否正常</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- 询盘处理 -->
+    <div class="card mb-3" id="inquiries">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-inbox me-2 text-primary"></i>询盘处理流程
+      </div>
+      <div class="card-body">
+        <h6 class="fw-semibold small mb-2">三层分类标准</h6>
+        <table class="table table-sm small mb-3">
+          <thead class="table-light">
+            <tr><th>层级</th><th>方式</th><th>判定结果</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Layer 0</td><td>黑白名单规则</td><td>黑名单 → 垃圾；白名单 → 直接生成草稿</td></tr>
+            <tr><td>Layer 1</td><td>Python 规则（无 API）</td><td>明显垃圾邮件直接过滤，节省 API 调用</td></tr>
+            <tr><td>Layer 2</td><td>LLM 8 维度评分</td><td>≥4 分 = 有效询盘；2-3 分 = 其他；&lt;2 分 = 垃圾</td></tr>
+          </tbody>
+        </table>
+        <h6 class="fw-semibold small mb-2">主列表操作</h6>
+        <ul class="small mb-0">
+          <li>点击任意行 → 展开查看邮件正文、分类评分明细、意向强度</li>
+          <li>点击"查看草稿"按钮进入草稿审核页</li>
+          <li>邮件展开时自动标记为已读</li>
+          <li>状态说明：<span class="s-new">新邮件</span> → <span class="s-pending">待审核</span> → <span class="s-sent">已发送</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 草稿审核 -->
+    <div class="card mb-3" id="draft">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-pencil-square me-2 text-warning"></i>草稿审核
+      </div>
+      <div class="card-body">
+        <div class="row g-2">
+          <div class="col-md-6">
+            <h6 class="fw-semibold small">页面左侧</h6>
+            <ul class="small mb-0">
+              <li>原始询盘全文</li>
+              <li>发件人、时间、语言</li>
+              <li>意向强度（1-5 星）</li>
+              <li>关联原始询盘（Re: 邮件时显示）</li>
+            </ul>
+          </div>
+          <div class="col-md-6">
+            <h6 class="fw-semibold small">页面右侧</h6>
+            <ul class="small mb-0">
+              <li>AI 匹配的产品报价（可有多个）</li>
+              <li>可直接编辑的回复草稿</li>
+              <li>批准发送 / 拒绝 两个操作</li>
+            </ul>
+          </div>
+        </div>
+        <div class="alert alert-warning py-2 mt-3 small mb-0">
+          <i class="bi bi-lightbulb me-1"></i>
+          建议：修改完草稿先点"<strong>保存修改</strong>"，再点"<strong>批准并发送</strong>"，防止内容丢失。
+          批准后系统自动创建 3 天后的跟进提醒。
+        </div>
+      </div>
+    </div>
+
+    <!-- 跟进提醒 -->
+    <div class="card mb-3" id="followups">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-bell me-2 text-warning"></i>跟进提醒
+      </div>
+      <div class="card-body">
+        <p class="small mb-2">报价发送后，系统自动在 3 天后创建跟进任务。每天 09:00 自动检查是否有逾期任务。</p>
+        <table class="table table-sm small mb-3">
+          <thead class="table-light">
+            <tr><th>状态</th><th>含义</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><span class="badge bg-warning text-dark">待处理</span></td><td>到期日未到</td></tr>
+            <tr><td><span class="badge bg-danger">已逾期</span></td><td>超过到期日未处理</td></tr>
+            <tr><td><span class="badge bg-info">草稿已生成</span></td><td>AI 已生成跟进草稿，待确认发送</td></tr>
+            <tr><td><span class="badge bg-success">已发送</span></td><td>跟进邮件已发出</td></tr>
+            <tr><td><span class="badge bg-secondary">已跳过</span></td><td>手动标记为不跟进</td></tr>
+          </tbody>
+        </table>
+        <p class="small mb-0">点击"<strong>生成草稿</strong>"→ AI 自动写跟进邮件 → 检查内容 → 点"<strong>发送</strong>"</p>
+      </div>
+    </div>
+
+    <!-- 客户档案 -->
+    <div class="card mb-3" id="customers">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-people me-2 text-info"></i>客户档案
+      </div>
+      <div class="card-body small">
+        <p class="mb-2">系统从每封有效询盘的发件人域名自动建档，记录：</p>
+        <div class="row g-2 mb-2">
+          <div class="col-md-6">
+            <ul class="mb-0">
+              <li>公司名称 / 国家</li>
+              <li>买家类型（终端用户/贸易商/经销商/代理商）</li>
+            </ul>
+          </div>
+          <div class="col-md-6">
+            <ul class="mb-0">
+              <li>询盘次数 / 已报价次数 / 跟进次数</li>
+              <li>首次 / 最近联系时间</li>
+            </ul>
+          </div>
+        </div>
+        <p class="mb-0 text-muted">点击"历史"查看该客户所有往来邮件。无需手动维护，系统自动更新。</p>
+      </div>
+    </div>
+
+    <!-- 黑白名单 -->
+    <div class="card mb-3" id="rules">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-shield-check me-2 text-secondary"></i>黑白名单（规则管理）
+      </div>
+      <div class="card-body small">
+        <div class="row g-2">
+          <div class="col-md-6">
+            <div class="p-2 rounded bg-danger-subtle">
+              <strong class="text-danger"><i class="bi bi-slash-circle me-1"></i>黑名单</strong>
+              <p class="mb-0 mt-1">匹配的发件人直接标为垃圾，不调用 AI，不显示草稿。<br>
+              适合：已知竞争对手、广告公司、骚扰发件人</p>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="p-2 rounded bg-success-subtle">
+              <strong class="text-success"><i class="bi bi-check-circle me-1"></i>白名单</strong>
+              <p class="mb-0 mt-1">匹配的发件人跳过 AI 分类，直接生成草稿。<br>
+              适合：老客户、集团内部地址、认证合作商</p>
+            </div>
+          </div>
+        </div>
+        <p class="small text-muted mt-2 mb-0">
+          <i class="bi bi-info-circle me-1"></i>
+          匹配模式支持域名（如 <code>spam.com</code>）或完整邮件地址，大小写不敏感，有任意包含即触发。
+        </p>
+      </div>
+    </div>
+
+    <!-- 数据分析 -->
+    <div class="card mb-3" id="analytics">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-bar-chart-line me-2 text-primary"></i>数据分析
+      </div>
+      <div class="card-body small">
+        <ul class="mb-0">
+          <li><strong>询盘漏斗</strong>：有效询盘 → 已草稿 → 已发送 → 已跟进，各环节转化率</li>
+          <li><strong>邮件分类分布</strong>：有效询盘 / 垃圾 / 其他占比饼图</li>
+          <li><strong>近 8 周趋势</strong>：有效询盘数量周度柱状图</li>
+          <li><strong>客户国家分布</strong>：Top 10 来源国排行</li>
+          <li><strong>关键指标</strong>：平均响应时长（小时）、草稿→发送转化率</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 背景调查 -->
+    <div class="card mb-3" id="bgcheck">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-search me-2 text-secondary"></i>背景调查
+      </div>
+      <div class="card-body small">
+        <p class="mb-2">在草稿审核页点击"背景调查"，系统将通过 Google 搜索对发件人公司进行三轮查询：</p>
+        <ol class="mb-2">
+          <li>公司基本信息（成立时间、规模、官网）</li>
+          <li>域名信誉（是否有诈骗投诉）</li>
+          <li>行业匹配度（是否真实采购硬质合金产品）</li>
+        </ol>
+        <p class="mb-0">结果包括：风险等级（低/中/高）、买家类型、红旗警告、加分项、综合建议。</p>
+        <div class="alert alert-secondary py-2 mt-2 mb-0">
+          <i class="bi bi-key me-1"></i>需要在 <code>.env</code> 中配置 <code>SERPER_API_KEY</code> 才能使用。
+        </div>
+      </div>
+    </div>
+
+    <!-- 常见问题 -->
+    <div class="card mb-3" id="faq">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-patch-question me-2 text-warning"></i>常见问题
+      </div>
+      <div class="card-body">
+        <div class="accordion accordion-flush" id="faqAccordion">
+
+          {% set faqs = [
+            ('点了"检查邮件"但没有新邮件出现', '1. 确认 .env 中 IMAP_HOST / IMAP_USER / IMAP_PASS 配置正确；2. 检查邮箱是否有未读邮件；3. 查看终端日志，IMAP 连接错误会有详细报错。'),
+            ('AI 分类把真实询盘判为垃圾', '在"规则管理"页将该发件人域名加入白名单，后续邮件将直接生成草稿，跳过 AI 分类。也可以在终端日志中查看 Layer 2 的 8 维评分明细。'),
+            ('草稿语言不对', '系统根据邮件内容自动判断语言（中/英/西/阿等）。若判断有误，可在草稿页直接修改后保存。根本解决需检查 ai_processor.py 中的 parse_inquiry 提示词。'),
+            ('产品匹配不准确', '编辑 products.csv 补充产品信息，或在 product_matcher.py 中的 SYNONYMS 字典中添加客户常用别名。修改后重启服务生效。'),
+            ('邮件发送失败', '查看终端日志中的 SMTP 错误。常见原因：1. 企业邮箱未开启 SMTP；2. SMTP_PORT 应为 465（SSL）或 587（STARTTLS）；3. 密码含特殊字符需在 .env 中加引号。'),
+            ('忘记登录密码', '在服务器终端运行以下命令重置密码：\npython -c "import database as db, auth; db.init_users_table(); db.update_user_password(\'your@email.com\', auth.hash_password(\'newpass\'))"'),
+            ('如何备份数据', '直接复制 email_reply.db 文件（SQLite 数据库），建议定期备份。数据库路径可通过 .env 中 DB_PATH 配置。'),
+          ] %}
+
+          {% for i, (q, a) in enumerate(faqs) %}
+          <div class="accordion-item border-0 border-bottom">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed py-3 small fw-semibold" type="button"
+                      data-bs-toggle="collapse" data-bs-target="#faq{{ i }}">
+                <i class="bi bi-question-circle me-2 text-muted"></i>{{ q }}
+              </button>
+            </h2>
+            <div id="faq{{ i }}" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+              <div class="accordion-body pt-0 small text-muted" style="white-space:pre-line">{{ a }}</div>
+            </div>
+          </div>
+          {% endfor %}
+
+        </div>
+      </div>
+    </div>
+
+    <!-- 环境变量 -->
+    <div class="card mb-3" id="env">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-gear me-2 text-secondary"></i>环境变量参考
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-sm small mb-0" style="font-size:.82rem">
+          <thead class="table-light">
+            <tr><th class="ps-3">变量名</th><th>说明</th><th>默认值</th></tr>
+          </thead>
+          <tbody>
+            {% set envs = [
+              ('ADMIN_EMAIL',     '初始管理员邮箱（首次启动建账号用）', 'admin@example.com'),
+              ('ADMIN_PASSWORD',  '初始管理员密码',                     'changeme123'),
+              ('SECRET_KEY',      'Session 签名密钥（生产环境必须设置）', '随机默认值'),
+              ('QIANWEN_API_KEY', '千问 API Key',                       '必填'),
+              ('ZHIPU_API_KEY',   '智谱 API Key（备用）',               '可选'),
+              ('LLM_PROVIDER',    'AI 提供商：qianwen / zhipu',         'qianwen'),
+              ('LLM_MODEL',       'AI 模型名称',                        'qwen-plus'),
+              ('IMAP_HOST',       '企业邮箱 IMAP 服务器地址',           '必填'),
+              ('IMAP_PORT',       'IMAP 端口',                          '993'),
+              ('IMAP_USER',       '邮箱账号',                           '必填'),
+              ('IMAP_PASS',       '邮箱密码',                           '必填'),
+              ('SMTP_HOST',       'SMTP 服务器（默认同 IMAP）',         '同 IMAP_HOST'),
+              ('SMTP_PORT',       'SMTP 端口',                          '465'),
+              ('SERPER_API_KEY',  'Google 搜索 API（背景调查功能）',    '可选'),
+              ('POLL_INTERVAL',   '自动检查邮件间隔（秒）',             '300'),
+              ('DB_PATH',         'SQLite 数据库路径',                   'email_reply.db'),
+              ('COMPANY_NAME',    '公司名称（写入回复落款）',           '可选'),
+            ] %}
+            {% for name, desc, default in envs %}
+            <tr>
+              <td class="ps-3 font-monospace text-primary">{{ name }}</td>
+              <td>{{ desc }}</td>
+              <td class="text-muted">{{ default }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,563 @@
+{% extends "base.html" %}
+{% block title %}询盘列表 — 询盘回复系统{% endblock %}
+
+{% block content %}
+
+{% set qp = request.query_params %}
+
+<!-- 配置引导卡片（有问题时显示） -->
+{% if setup.issues or setup.no_products %}
+<div class="card border-warning mb-4" style="border-left:4px solid #ffc107 !important">
+  <div class="card-body py-3">
+    <div class="fw-semibold mb-2"><i class="bi bi-rocket-takeoff me-2 text-warning"></i>快速开始 — 完成以下配置后系统将全速运行</div>
+    <div class="row g-2">
+      {% if setup.no_products %}
+      <div class="col-md-6">
+        <div class="d-flex align-items-start gap-2 p-2 rounded bg-light">
+          <i class="bi bi-box-seam text-warning mt-1"></i>
+          <div>
+            <div class="small fw-semibold">上传产品库</div>
+            <div class="text-muted" style="font-size:.78rem">系统需要产品信息才能自动匹配报价</div>
+            <a href="/settings/products" class="btn btn-xs btn-warning mt-1" style="font-size:.78rem;padding:2px 8px">前往上传</a>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+      {% for title, desc, link in setup.issues %}
+      <div class="col-md-6">
+        <div class="d-flex align-items-start gap-2 p-2 rounded bg-light">
+          <i class="bi bi-exclamation-circle text-danger mt-1"></i>
+          <div>
+            <div class="small fw-semibold">{{ title }}</div>
+            <div class="text-muted" style="font-size:.78rem">{{ desc }}</div>
+            <a href="{{ link }}" class="btn btn-xs btn-danger mt-1" style="font-size:.78rem;padding:2px 8px">立即配置</a>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if qp.get('demo') %}
+<div class="alert alert-info py-2 small mb-3">
+  <i class="bi bi-stars me-1"></i>已加载 <strong>{{ qp.get('demo') }}</strong> 条示例询盘，可以完整体验系统流程。
+</div>
+{% endif %}
+
+<!-- 统计卡片：flex 布局，5 张等宽自适应 -->
+<div class="d-flex flex-wrap gap-3 mb-4">
+  <div class="card stat-card p-3 flex-fill" style="min-width:130px">
+    <div class="d-flex align-items-center gap-3">
+      <div class="rounded-3 p-2" style="background:#e8f0fe">
+        <i class="bi bi-envelope fs-4 text-primary"></i>
+      </div>
+      <div>
+        <div class="stat-num text-primary">{{ stats.total }}</div>
+        <div class="text-muted small">总邮件数</div>
+      </div>
+    </div>
+  </div>
+  <div class="card stat-card p-3 flex-fill" style="min-width:130px">
+    <div class="d-flex align-items-center gap-3">
+      <div class="rounded-3 p-2" style="background:#d1f0e0">
+        <i class="bi bi-briefcase fs-4 text-success"></i>
+      </div>
+      <div>
+        <div class="stat-num text-success">{{ stats.inquiries }}</div>
+        <div class="text-muted small">有效询盘</div>
+      </div>
+    </div>
+  </div>
+  <div class="card stat-card p-3 flex-fill" style="min-width:130px">
+    <div class="d-flex align-items-center gap-3">
+      <div class="rounded-3 p-2" style="background:#fff3cd">
+        <i class="bi bi-hourglass-split fs-4 text-warning"></i>
+      </div>
+      <div>
+        <div class="stat-num text-warning">{{ stats.pending }}</div>
+        <div class="text-muted small">待审核草稿</div>
+      </div>
+    </div>
+  </div>
+  <div class="card stat-card p-3 flex-fill" style="min-width:130px">
+    <div class="d-flex align-items-center gap-3">
+      <div class="rounded-3 p-2" style="background:#d1f0e0">
+        <i class="bi bi-send-check fs-4 text-success"></i>
+      </div>
+      <div>
+        <div class="stat-num text-success">{{ stats.sent }}</div>
+        <div class="text-muted small">已发送回复</div>
+      </div>
+    </div>
+  </div>
+  <div class="card stat-card p-3 flex-fill" style="min-width:130px">
+    <div class="d-flex align-items-center gap-3">
+      <div class="rounded-3 p-2" style="background:#fde8f0">
+        <i class="bi bi-trophy fs-4 text-danger"></i>
+      </div>
+      <div>
+        <div class="stat-num text-danger">{{ stats.won }}</div>
+        <div class="text-muted small">已成单</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 搜索/过滤栏 -->
+<form method="get" action="/" class="card mb-3">
+  <div class="card-body py-2">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-3">
+        <input type="text" name="q" class="form-control form-control-sm"
+               placeholder="搜索发件人、主题、正文…" value="{{ q }}">
+      </div>
+      <div class="col-md-2">
+        <select name="cat" class="form-select form-select-sm">
+          <option value="all" {% if cat == 'all' %}selected{% endif %}>所有分类</option>
+          <option value="valid_inquiry" {% if cat == 'valid_inquiry' %}selected{% endif %}>有效询盘</option>
+          <option value="other" {% if cat == 'other' %}selected{% endif %}>其他</option>
+          <option value="spam" {% if cat == 'spam' %}selected{% endif %}>垃圾邮件</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <select name="status" class="form-select form-select-sm">
+          <option value="" {% if not request.query_params.get('status') %}selected{% endif %}>所有状态</option>
+          <option value="new"     {% if request.query_params.get('status') == 'new'     %}selected{% endif %}>新邮件</option>
+          <option value="drafted" {% if request.query_params.get('status') == 'drafted' %}selected{% endif %}>待审核</option>
+          <option value="sent"    {% if request.query_params.get('status') == 'sent'    %}selected{% endif %}>已发送</option>
+          <option value="ignored" {% if request.query_params.get('status') == 'ignored' %}selected{% endif %}>已忽略</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <input type="date" name="from" class="form-control form-control-sm"
+               placeholder="开始日期" value="{{ date_from }}" title="开始日期">
+      </div>
+      <div class="col-md-2">
+        <input type="date" name="to" class="form-control form-control-sm"
+               placeholder="结束日期" value="{{ date_to }}" title="结束日期">
+      </div>
+      <div class="col-md-1 d-flex gap-1">
+        <button type="submit" class="btn btn-sm btn-primary flex-fill">
+          <i class="bi bi-search me-1"></i>搜索
+        </button>
+        {% if q or cat != 'all' or date_from or date_to %}
+        <a href="/" class="btn btn-sm btn-outline-secondary px-2" title="清除过滤">
+          <i class="bi bi-x-lg"></i>
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</form>
+
+<!-- 邮件列表 -->
+<div class="card">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <span class="fw-semibold"><i class="bi bi-list-ul me-2"></i>邮件列表
+      {% if q or cat != 'all' or date_from or date_to %}
+        <span class="badge bg-warning text-dark ms-1 small">已过滤</span>
+      {% endif %}
+    </span>
+    <span class="text-muted small">共 {{ total }} 封，第 {{ page }}/{{ total_pages }} 页</span>
+  </div>
+  <!-- 批量操作栏（选中才显示） -->
+  <div id="bulk-bar" class="d-none px-3 py-2 border-bottom bg-light d-flex align-items-center gap-3">
+    <span class="small fw-semibold" id="bulk-count">已选 0 封</span>
+    <form method="post" action="/emails/bulk" id="bulk-form" class="d-flex gap-2">
+      <input type="hidden" name="ids" id="bulk-ids">
+      <button type="submit" name="action" value="read"
+              class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-eye me-1"></i>标为已读
+      </button>
+      <button type="submit" name="action" value="ignored"
+              class="btn btn-sm btn-outline-danger">
+        <i class="bi bi-x-circle me-1"></i>批量忽略
+      </button>
+    </form>
+    <button class="btn btn-sm btn-link text-muted ms-auto" id="bulk-clear">取消选择</button>
+  </div>
+  <div class="table-responsive">
+    <table class="table align-middle mb-0" id="email-table">
+      {# 构建排序基础参数（保留过滤条件，排除 sort/order/page） #}
+      {% set _sq = [] %}
+      {% if q %}{% set _ = _sq.append('q=' ~ q) %}{% endif %}
+      {% if cat and cat != 'all' %}{% set _ = _sq.append('cat=' ~ cat) %}{% endif %}
+      {% if status_filter %}{% set _ = _sq.append('status=' ~ status_filter) %}{% endif %}
+      {% if date_from %}{% set _ = _sq.append('from=' ~ date_from) %}{% endif %}
+      {% if date_to %}{% set _ = _sq.append('to=' ~ date_to) %}{% endif %}
+      {% set _sq_str = (_sq | join('&') ~ '&') if _sq else '' %}
+      {% macro sort_link(col, label) %}
+        {% set col_order = 'asc' if sort == col and order == 'desc' else 'desc' %}
+        <a href="?{{ _sq_str }}sort={{ col }}&order={{ col_order }}"
+           class="text-decoration-none text-dark">{{ label }}{% if sort == col %}<i class="bi bi-caret-{{ 'up' if order == 'asc' else 'down' }}-fill ms-1" style="font-size:.7rem"></i>{% endif %}</a>
+      {% endmacro %}
+      <thead class="table-light">
+        <tr>
+          <th style="width:32px">
+            <input type="checkbox" id="check-all" class="form-check-input" title="全选">
+          </th>
+          <th style="width:24px"></th>
+          <th>{{ sort_link('sender', '发件人') }}</th>
+          <th>主题</th>
+          <th>{{ sort_link('category', '分类') }}</th>
+          <th>语言</th>
+          <th>{{ sort_link('status', '状态') }}</th>
+          <th>{{ sort_link('received_at', '收件时间') }}</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in emails %}
+        <tr class="email-row" data-id="{{ e.id }}">
+          <td class="text-center" onclick="event.stopPropagation()">
+            <input type="checkbox" class="form-check-input email-check" value="{{ e.id }}">
+          </td>
+          <td class="text-center text-muted">
+            <i class="bi bi-chevron-right toggle-icon" style="font-size:.75rem;transition:transform .2s"></i>
+          </td>
+          <td>
+            <div class="text-truncate fw-semibold" style="max-width:170px" title="{{ e.sender }}">
+              {{ e.sender | replace('<', '') | replace('>', '') | truncate(30) }}
+            </div>
+          </td>
+          <td>
+            <div class="text-truncate" style="max-width:260px" title="{{ e.subject }}">{{ e.subject }}</div>
+          </td>
+          <td>
+            {% if e.category == 'valid_inquiry' %}
+              <span class="badge badge-inquiry">询盘</span>
+            {% elif e.category == 'spam' %}
+              <span class="badge badge-spam">垃圾</span>
+            {% else %}
+              <span class="badge badge-other">其他</span>
+            {% endif %}
+          </td>
+          <td>
+            <span class="badge bg-light text-dark border small">{{ e.language | upper if e.language and e.language != 'unknown' else '—' }}</span>
+          </td>
+          {% set s = e.draft_status or e.status %}
+          <td class="status-cell" data-status="{{ s }}">
+            {% if s in ['pending', 'drafted'] %}
+              <span class="s-pending"><i class="bi bi-clock me-1"></i>待审核</span>
+            {% elif s == 'sent' %}
+              <span class="s-sent"><i class="bi bi-check2-circle me-1"></i>已发送</span>
+            {% elif s == 'rejected' %}
+              <span class="s-rejected"><i class="bi bi-x-circle me-1"></i>已拒绝</span>
+            {% elif s == 'ignored' %}
+              <span class="s-ignored">已忽略</span>
+            {% elif s == 'read' %}
+              <span class="s-ignored">已读</span>
+            {% else %}
+              <span class="s-new"><i class="bi bi-circle me-1"></i>新邮件</span>
+            {% endif %}
+          </td>
+          <td class="small text-nowrap email-time" data-ts="{{ (e.received_at or '')[:10] }}">{{ (e.received_at or '')[:16] | replace('T', ' ') }}</td>
+          <td>
+            <div class="d-flex gap-1" onclick="event.stopPropagation()">
+              {% if e.draft_id %}
+              <a href="/draft/{{ e.draft_id }}" class="btn btn-sm btn-primary px-3">
+                <i class="bi bi-pencil-square me-1"></i>草稿
+              </a>
+              {% endif %}
+              {% if e.category in ['spam', 'other'] %}
+              <form method="post" action="/email/{{ e.id }}/reprocess">
+                <button type="submit" class="btn btn-sm btn-outline-warning px-2"
+                        title="重新处理（误判时使用）"
+                        onclick="return confirm('重新用 AI 对这封邮件分类？\n如果是有效询盘将自动生成草稿。')">
+                  <i class="bi bi-arrow-repeat"></i>
+                </button>
+              </form>
+              {% endif %}
+              {% if e.category == 'valid_inquiry' %}
+              <a href="/check/{{ e.id }}" class="btn btn-sm btn-outline-info px-2" title="背景调查">
+                <i class="bi bi-search"></i>
+                {% if e.reply_count %}
+                  <span class="badge bg-info text-dark ms-1" style="font-size:.65rem">{{ e.reply_count }}回复</span>
+                {% endif %}
+              </a>
+              {% if e.deal_status == 'won' %}
+                <span class="badge bg-danger align-self-center" title="已成单">
+                  <i class="bi bi-trophy-fill"></i>
+                </span>
+              {% elif e.draft_status == 'sent' or e.status == 'sent' %}
+              <button class="btn btn-sm btn-outline-danger px-2" title="标记成单"
+                      onclick="markDeal({{ e.id }}, this)">
+                <i class="bi bi-trophy"></i>
+              </button>
+              {% endif %}
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        <!-- 展开预览行 -->
+        <tr class="preview-row d-none" id="preview-{{ e.id }}">
+          <td colspan="10" class="p-0 pb-2"
+              style="border-left:3px solid #0d6efd;background:#f0f5ff">
+
+            <!-- 分类评分明细 -->
+            <div class="d-flex align-items-center flex-wrap gap-2 py-2 border-bottom px-3">
+              <span class="text-muted small fw-semibold">分类依据</span>
+              {% if e.classify_score is not none %}
+                {# 新数据：有完整评分 #}
+                <span class="badge
+                  {% if e.category == 'valid_inquiry' %}bg-success
+                  {% elif e.category == 'spam' %}bg-secondary
+                  {% else %}bg-warning text-dark{% endif %}">
+                  {{ e.classify_score | int }} / 10 分
+                </span>
+                {% if e.classify_layer == 1 %}
+                  <span class="text-muted small">规则直判（Layer 1，未调用 API）</span>
+                {% elif e.classify_criteria %}
+                  {% set cr = e.classify_criteria | from_json %}
+                  {% set labels = {'C1':'产品相关','C2':'询价意图','C3':'数量/规格',
+                    'C4':'交期/付款','C5':'企业邮箱','C6':'公司/应用',
+                    'C7':'商务格式','C8':'行业匹配'} %}
+                  {% for cid, val in cr.items() %}
+                    <span class="badge small {% if val %}bg-success{% else %}bg-light text-muted border{% endif %}">
+                      {{ labels.get(cid, cid) }}
+                    </span>
+                  {% endfor %}
+                {% endif %}
+              {% else %}
+                {# 旧数据：无评分记录，仅显示分类结果 #}
+                <span class="badge bg-light text-muted border small">无评分记录（系统升级前处理）</span>
+                <span class="text-muted small">
+                  → 下次收到新邮件将自动启用三层评分标准
+                </span>
+              {% endif %}
+            </div>
+
+            <!-- 意向评分 + 线程标记 -->
+            {% if e.intent_score is not none or e.thread_email_id %}
+            <div class="d-flex align-items-center gap-3 py-1 border-bottom px-3">
+              {% if e.intent_score is not none %}
+              <span class="text-muted small fw-semibold">意向强度</span>
+              <span>
+                {% for i in range(1, 6) %}
+                  <i class="bi bi-star{% if i <= e.intent_score %}-fill text-warning{% endif %}" style="font-size:.8rem"></i>
+                {% endfor %}
+              </span>
+              {% endif %}
+              {% if e.thread_email_id %}
+              <span class="badge bg-light text-secondary border small">
+                <i class="bi bi-link-45deg"></i> Re: 原始 #{{ e.thread_email_id }}
+              </span>
+              {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- 邮件正文预览 -->
+            <div class="email-preview mt-1 mx-3 mb-2" id="preview-text-{{ e.id }}"></div>
+            <template id="preview-data-{{ e.id }}">{{ e.body_text or '' }}</template>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="10" class="text-center text-muted py-5">
+            <i class="bi bi-inbox fs-3 d-block mb-2 opacity-30"></i>
+            <div class="mb-2">暂无邮件记录</div>
+            <div class="d-flex gap-2 justify-content-center">
+              <form method="post" action="/poll">
+                <button class="btn btn-sm btn-primary">
+                  <i class="bi bi-arrow-repeat me-1"></i>立即检查邮件
+                </button>
+              </form>
+              <form method="post" action="/demo/load">
+                <button class="btn btn-sm btn-outline-secondary">
+                  <i class="bi bi-stars me-1"></i>加载示例数据（体验系统功能）
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% set _qs = [] %}
+{% if q %}{% set _ = _qs.append('q=' ~ q) %}{% endif %}
+{% if cat and cat != 'all' %}{% set _ = _qs.append('cat=' ~ cat) %}{% endif %}
+{% if status_filter %}{% set _ = _qs.append('status=' ~ status_filter) %}{% endif %}
+{% if date_from %}{% set _ = _qs.append('from=' ~ date_from) %}{% endif %}
+{% if date_to %}{% set _ = _qs.append('to=' ~ date_to) %}{% endif %}
+{% set _qs_str = ('&' ~ _qs | join('&')) if _qs else '' %}
+{% if total_pages > 1 %}
+<nav class="mt-3 d-flex justify-content-center">
+  <ul class="pagination pagination-sm mb-0">
+    <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+      <a class="page-link" href="?page={{ page - 1 }}{{ _qs_str }}">‹ 上一页</a>
+    </li>
+    {% for p in range(1, total_pages + 1) %}
+    <li class="page-item {% if p == page %}active{% endif %}">
+      <a class="page-link" href="?page={{ p }}{{ _qs_str }}">{{ p }}</a>
+    </li>
+    {% endfor %}
+    <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+      <a class="page-link" href="?page={{ page + 1 }}{{ _qs_str }}">下一页 ›</a>
+    </li>
+  </ul>
+</nav>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── 批量操作 ─────────────────────────────────────────────────────────────────
+(function () {
+  const checkAll = document.getElementById('check-all');
+  const bulkBar  = document.getElementById('bulk-bar');
+  const bulkIds  = document.getElementById('bulk-ids');
+  const bulkCount = document.getElementById('bulk-count');
+  const bulkClear = document.getElementById('bulk-clear');
+
+  function getChecked() {
+    return [...document.querySelectorAll('.email-check:checked')].map(c => c.value);
+  }
+  function refreshBar() {
+    const ids = getChecked();
+    if (ids.length > 0) {
+      bulkBar.classList.remove('d-none');
+      bulkBar.classList.add('d-flex');
+      bulkCount.textContent = `已选 ${ids.length} 封`;
+      bulkIds.value = ids.join(',');
+    } else {
+      bulkBar.classList.add('d-none');
+      bulkBar.classList.remove('d-flex');
+    }
+  }
+  checkAll?.addEventListener('change', () => {
+    document.querySelectorAll('.email-check').forEach(c => { c.checked = checkAll.checked; });
+    refreshBar();
+  });
+  document.querySelectorAll('.email-check').forEach(c => {
+    c.addEventListener('change', () => {
+      checkAll.checked = getChecked().length === document.querySelectorAll('.email-check').length;
+      refreshBar();
+    });
+  });
+  bulkClear?.addEventListener('click', () => {
+    document.querySelectorAll('.email-check').forEach(c => { c.checked = false; });
+    checkAll.checked = false;
+    refreshBar();
+  });
+})();
+
+// 标记成单（Bootstrap modal）
+let _dealEmailId = null, _dealBtn = null;
+function markDeal(emailId, btn) {
+  _dealEmailId = emailId;
+  _dealBtn = btn;
+  document.getElementById('deal-amount').value = '0';
+  new bootstrap.Modal(document.getElementById('dealModal')).show();
+}
+document.getElementById('deal-confirm')?.addEventListener('click', async () => {
+  const amount = parseFloat(document.getElementById('deal-amount').value) || 0;
+  const form = new FormData();
+  form.append('status', 'won');
+  form.append('amount', amount);
+  await fetch(`/email/${_dealEmailId}/deal`, { method: 'POST', body: form });
+  bootstrap.Modal.getInstance(document.getElementById('dealModal'))?.hide();
+  _dealBtn.outerHTML = '<span class="badge bg-danger align-self-center" title="已成单"><i class="bi bi-trophy-fill"></i></span>';
+  showToast('已标记成单！');
+});
+
+// ── 实时推送：SSE 监听新草稿 ─────────────────────────────────────────────────
+// 使用浏览器原生 EventSource API（无需第三方库）连接后端 /events 端点；
+// 服务器有新草稿时推送 new_draft 事件，自动刷新页面。
+// 参考：https://medium.com/@inandelibas/real-time-notifications-in-python-using-sse-with-fastapi-1c8c54746eb7
+(function () {
+  let es;
+  function connect() {
+    es = new EventSource('/events');
+    es.addEventListener('new_draft', (e) => {
+      try {
+        const d = JSON.parse(e.data);
+        showToast(`📨 新询盘：${d.subject}`, 'success');
+      } catch (_) {}
+      // 延迟 800ms 后刷新，让 toast 先显示出来
+      setTimeout(() => location.reload(), 800);
+    });
+    es.onerror = () => {
+      // 断连后浏览器会自动重连（EventSource 标准行为），无需手动处理
+    };
+  }
+  connect();
+})();
+
+// 行展开/收起邮件预览
+document.querySelectorAll('.email-row').forEach(row => {
+  row.addEventListener('click', (e) => {
+    if (e.target.closest('a, button, form')) return;
+    const id = row.dataset.id;
+    const previewRow = document.getElementById('preview-' + id);
+    const icon = row.querySelector('.toggle-icon');
+    const textEl = document.getElementById('preview-text-' + id);
+    const isOpen = !previewRow.classList.contains('d-none');
+    if (isOpen) {
+      previewRow.classList.add('d-none');
+      row.classList.remove('row-expanded');
+      icon.style.transform = '';
+    } else {
+      previewRow.classList.remove('d-none');
+      row.classList.add('row-expanded');
+      icon.style.transform = 'rotate(90deg)';
+      if (!textEl.textContent.trim()) {
+        const tpl = document.getElementById('preview-data-' + id);
+        const text = tpl ? tpl.content.textContent.trim() : '';
+        textEl.textContent = text || '（无正文内容）';
+      }
+      // 标为已读（只在 status=new 时生效，后端自动判断）
+      const statusCell = row.querySelector('.status-cell');
+      if (statusCell && statusCell.dataset.status === 'new') {
+        fetch(`/email/${id}/read`, { method: 'POST' }).then(() => {
+          statusCell.innerHTML = '<span class="s-ignored">已读</span>';
+          statusCell.dataset.status = 'read';
+        });
+      }
+    }
+  });
+});
+
+// 今日收件时间高亮
+(function() {
+  const today = new Date().toISOString().slice(0, 10);
+  document.querySelectorAll('.email-time').forEach(td => {
+    if (td.dataset.ts === today) {
+      td.classList.add('fw-semibold', 'text-primary');
+    } else {
+      td.classList.add('text-muted');
+    }
+  });
+})();
+</script>
+
+<!-- 成单金额 Modal -->
+<div class="modal fade" id="dealModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="bi bi-trophy me-2 text-warning"></i>标记成单</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body py-3">
+        <label class="form-label small fw-semibold text-muted">成交金额（USD）</label>
+        <div class="input-group input-group-sm">
+          <span class="input-group-text">$</span>
+          <input type="number" id="deal-amount" class="form-control" min="0" step="0.01" value="0">
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-sm btn-danger" id="deal-confirm">
+          <i class="bi bi-trophy-fill me-1"></i>确认成单
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

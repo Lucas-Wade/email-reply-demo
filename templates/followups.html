@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block title %}跟进提醒 — 询盘回复系统{% endblock %}
+
+{% block content %}
+
+{% if request.query_params.get('sent') %}
+<div class="alert alert-success alert-dismissible fade show">
+  <i class="bi bi-send-check me-2"></i>跟进邮件已发送。
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+{% if request.query_params.get('saved') %}
+<div class="alert alert-info alert-dismissible fade show">
+  <i class="bi bi-check-circle me-2"></i>草稿已保存。
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+{% if request.query_params.get('generating') %}
+<div class="alert alert-info alert-dismissible fade show">
+  <i class="bi bi-arrow-repeat spin me-2"></i>正在生成跟进草稿，稍后刷新页面…
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+<!-- 统计 -->
+<div class="row g-3 mb-4">
+  <div class="col-4">
+    <div class="card stat-card p-3">
+      <div class="d-flex align-items-center gap-3">
+        <div class="rounded-3 p-2" style="background:#fff3cd">
+          <i class="bi bi-hourglass-split fs-4 text-warning"></i>
+        </div>
+        <div>
+          <div class="stat-num text-warning">{{ stats.pending }}</div>
+          <div class="text-muted small">待跟进</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-4">
+    <div class="card stat-card p-3">
+      <div class="d-flex align-items-center gap-3">
+        <div class="rounded-3 p-2" style="background:#f8d7da">
+          <i class="bi bi-exclamation-circle fs-4 text-danger"></i>
+        </div>
+        <div>
+          <div class="stat-num text-danger">{{ stats.overdue }}</div>
+          <div class="text-muted small">已逾期</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-4">
+    <div class="card stat-card p-3">
+      <div class="d-flex align-items-center gap-3">
+        <div class="rounded-3 p-2" style="background:#d1f0e0">
+          <i class="bi bi-check2-all fs-4 text-success"></i>
+        </div>
+        <div>
+          <div class="stat-num text-success">{{ stats.done }}</div>
+          <div class="text-muted small">已完成</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 跟进列表 -->
+<div class="card">
+  <div class="card-header bg-white fw-semibold">
+    <i class="bi bi-bell me-2"></i>跟进任务列表
+  </div>
+  <div class="table-responsive">
+    <table class="table align-middle mb-0" style="font-size:.88rem">
+      <thead class="table-light">
+        <tr>
+          <th>客户</th>
+          <th>原始询盘主题</th>
+          <th>到期日</th>
+          <th>状态</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in followups %}
+        <tr class="{% if f.status == 'pending' and f.due_date <= today %}table-danger{% endif %}">
+          <td>
+            <div class="fw-semibold text-truncate" style="max-width:160px" title="{{ f.sender }}">
+              {{ f.sender | replace('<','') | replace('>','') | truncate(28) }}
+            </div>
+            <div class="text-muted" style="font-size:.75rem">{{ f.note }}</div>
+          </td>
+          <td class="text-truncate" style="max-width:220px">{{ f.original_subject }}</td>
+          <td class="text-nowrap">
+            <span class="{% if f.status == 'pending' and f.due_date <= today %}text-danger fw-semibold{% else %}text-muted{% endif %}">
+              {{ f.due_date }}
+            </span>
+          </td>
+          <td>
+            {% if f.status == 'pending' %}
+              <span class="badge bg-warning text-dark">待处理</span>
+            {% elif f.status == 'draft_ready' %}
+              <span class="badge bg-info">草稿就绪</span>
+            {% elif f.status == 'sent' %}
+              <span class="badge bg-success">已发送</span>
+            {% elif f.status == 'skipped' %}
+              <span class="badge bg-secondary">已跳过</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="d-flex gap-1 flex-wrap">
+              {% if f.status in ['pending'] %}
+                <form method="post" action="/followup/{{ f.id }}/generate">
+                  <button class="btn btn-sm btn-primary">
+                    <i class="bi bi-magic me-1"></i>生成草稿
+                  </button>
+                </form>
+                <form method="post" action="/followup/{{ f.id }}/skip"
+                      onsubmit="return confirm('确认跳过这个跟进？')">
+                  <button class="btn btn-sm btn-outline-secondary">跳过</button>
+                </form>
+              {% elif f.status == 'draft_ready' %}
+                <!-- 展开草稿预览 -->
+                <button class="btn btn-sm btn-outline-info"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#draft-{{ f.id }}">
+                  <i class="bi bi-eye me-1"></i>查看草稿
+                </button>
+                <form method="post" action="/followup/{{ f.id }}/send"
+                      onsubmit="return confirm('确认发送这封跟进邮件？')">
+                  <button class="btn btn-sm btn-success">
+                    <i class="bi bi-send me-1"></i>发送
+                  </button>
+                </form>
+                <form method="post" action="/followup/{{ f.id }}/skip">
+                  <button class="btn btn-sm btn-outline-secondary">跳过</button>
+                </form>
+              {% elif f.status == 'sent' %}
+                <span class="text-muted small">{{ (f.sent_at or '')[:10] }}</span>
+              {% endif %}
+              {% if f.draft_id %}
+                <a href="/draft/{{ f.draft_id }}" class="btn btn-sm btn-outline-secondary" title="查看原始草稿">
+                  <i class="bi bi-file-text"></i>
+                </a>
+              {% endif %}
+            </div>
+            {% if f.status == 'draft_ready' and f.followup_body %}
+            <div class="collapse mt-2" id="draft-{{ f.id }}">
+              <form method="post" action="/followup/{{ f.id }}/save_draft" class="card card-body p-2">
+                <div class="mb-2">
+                  <label class="form-label small fw-semibold text-muted mb-1">主题</label>
+                  <input type="text" name="subject" class="form-control form-control-sm"
+                         value="{{ f.followup_subject }}">
+                </div>
+                <div class="mb-2">
+                  <label class="form-label small fw-semibold text-muted mb-1">正文</label>
+                  <textarea name="body" class="form-control form-control-sm"
+                            rows="6" style="font-size:.82rem;white-space:pre-wrap">{{ f.followup_body }}</textarea>
+                </div>
+                <div>
+                  <button type="submit" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-save me-1"></i>保存修改
+                  </button>
+                </div>
+              </form>
+            </div>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5" class="text-center text-muted py-5">
+            <i class="bi bi-bell-slash fs-2 d-block mb-2 opacity-30"></i>
+            暂无跟进任务。发送报价后系统会自动创建 3 天跟进提醒。
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 传递今天日期给模板比较逻辑（Jinja2 无内置 today）
+// 已通过 context 传入，这里仅备用
+</script>
+{% endblock %}

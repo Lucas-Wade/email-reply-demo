@@ -1,0 +1,356 @@
+{% extends "base.html" %}
+{% block title %}审核草稿 — 询盘回复系统{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-3 gap-2">
+  <a href="/" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i>返回列表
+  </a>
+  <a href="/check/{{ draft.email_id }}" class="btn btn-sm btn-outline-info">
+    <i class="bi bi-search me-1"></i>背景调查
+  </a>
+  <h6 class="mb-0 fw-semibold ms-1">审核草稿 #{{ draft.id }}</h6>
+  <span class="ms-auto badge
+    {% if draft.status == 'sent' %}bg-success
+    {% elif draft.status == 'rejected' %}bg-secondary
+    {% else %}bg-warning text-dark{% endif %} px-3 py-2">
+    {% if draft.status == 'sent' %}已发送
+    {% elif draft.status == 'rejected' %}已拒绝
+    {% else %}待审核{% endif %}
+  </span>
+</div>
+
+<div class="row g-3">
+
+  <!-- 左栏：原始询盘 -->
+  <div class="col-lg-4">
+    <div class="card h-100">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-envelope-open me-2 text-secondary"></i>原始询盘
+      </div>
+      <div class="card-body">
+        <dl class="row small mb-3 g-1">
+          <dt class="col-4 text-muted">发件人</dt>
+          <dd class="col-8 mb-0 text-truncate" title="{{ draft.sender }}">{{ draft.sender }}</dd>
+          <dt class="col-4 text-muted">主题</dt>
+          <dd class="col-8 mb-0">{{ draft.original_subject }}</dd>
+          <dt class="col-4 text-muted">时间</dt>
+          <dd class="col-8 mb-0">{{ (draft.received_at or '')[:16] | replace('T', ' ') }}</dd>
+          <dt class="col-4 text-muted">语言</dt>
+          <dd class="col-8 mb-0">
+            <span class="badge bg-light text-dark border">{{ (draft.language or '?') | upper }}</span>
+          </dd>
+          <dt class="col-4 text-muted">意向强度</dt>
+          <dd class="col-8 mb-0">
+            {% set s = draft.intent_score or 0 %}
+            {% for i in range(1, 6) %}
+              <i class="bi bi-star{% if i <= s %}-fill text-warning{% endif %} small"></i>
+            {% endfor %}
+            <span class="text-muted small ms-1">{{ s }}/5</span>
+          </dd>
+          {% if draft.thread_email_id %}
+          <dt class="col-4 text-muted">关联询盘</dt>
+          <dd class="col-8 mb-0">
+            <a href="/check/{{ draft.thread_email_id }}" class="small">
+              <i class="bi bi-link-45deg"></i> 查看原始询盘 #{{ draft.thread_email_id }}
+            </a>
+          </dd>
+          {% endif %}
+        </dl>
+        <div class="original-mail">{{ draft.body_text }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右栏：草稿编辑 + 核验卡 + 操作 -->
+  <div class="col-lg-8 d-flex flex-column gap-3">
+
+    <!-- 核验卡：AI理解 vs 匹配结果 -->
+    {% set products = (draft.quoted_products | from_json) if draft.quoted_products else [] %}
+    {% set inquiry = (draft.parsed_inquiry | from_json) if draft.parsed_inquiry else {} %}
+    {% set reqs = inquiry.products_requested or [] %}
+    <div class="card border-warning" style="border-width:2px!important">
+      <div class="card-header bg-warning bg-opacity-10 fw-semibold d-flex align-items-center gap-2">
+        <i class="bi bi-shield-check text-warning"></i>
+        核验：AI理解是否正确？
+        <span class="ms-auto text-muted fw-normal small">发送前请逐项确认</span>
+      </div>
+      <div class="card-body p-0">
+        <div class="row g-0" style="font-size:.83rem">
+
+          <!-- 左：AI从询盘里读到的 -->
+          <div class="col-6 border-end p-3">
+            <div class="text-muted small fw-semibold mb-2 text-uppercase" style="letter-spacing:.04em">
+              AI读到的需求
+            </div>
+            {% if reqs %}
+              {% for r in reqs %}
+              <div class="mb-2 pb-2 {% if not loop.last %}border-bottom{% endif %}">
+                <div class="fw-semibold text-dark mb-1">{{ r.description or '（未描述）' }}</div>
+                <div class="d-flex flex-wrap gap-2">
+                  {% if r.quantity %}
+                  <span class="badge bg-light text-dark border">数量 {{ r.quantity }} {{ r.unit or '' }}</span>
+                  {% endif %}
+                  {% if r.grade_or_spec %}
+                  <span class="badge bg-light text-dark border">型号 {{ r.grade_or_spec }}</span>
+                  {% endif %}
+                  {% if r.target_price_usd %}
+                  <span class="badge bg-light text-dark border">目标价 ${{ r.target_price_usd }}</span>
+                  {% endif %}
+                </div>
+              </div>
+              {% endfor %}
+            {% else %}
+              <div class="text-muted fst-italic">未能提取产品需求</div>
+            {% endif %}
+            {% if inquiry.urgency %}
+            <div class="mt-1">
+              <span class="badge {% if inquiry.urgency == 'high' %}bg-danger{% elif inquiry.urgency == 'medium' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+                紧急度 {{ inquiry.urgency }}
+              </span>
+            </div>
+            {% endif %}
+            {% if inquiry.delivery_deadline %}
+            <div class="text-muted small mt-1">
+              <i class="bi bi-calendar3 me-1"></i>交期：{{ inquiry.delivery_deadline }}
+            </div>
+            {% endif %}
+          </div>
+
+          <!-- 右：实际匹配到的产品 -->
+          <div class="col-6 p-3">
+            <div class="text-muted small fw-semibold mb-2 text-uppercase" style="letter-spacing:.04em">
+              匹配到的产品
+            </div>
+            {% if products %}
+              {% set min_score = products | map(attribute='match_score') | map('float') | min %}
+              {% if min_score < 8 %}
+              <div class="alert alert-warning py-1 px-2 mb-2 small">
+                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                匹配分偏低（最低 {{ min_score | int }} 分），报价可能对应错误产品，<strong>请仔细核对</strong>
+              </div>
+              {% endif %}
+              {% for p in products %}
+              <div class="mb-2 pb-2 {% if not loop.last %}border-bottom{% endif %}">
+                <div class="fw-semibold text-dark mb-1">
+                  {{ p.product_name }}
+                  {% set sc = p.match_score | float %}
+                  <span class="badge small ms-1 {% if sc >= 20 %}score-high{% elif sc >= 8 %}score-mid{% else %}score-low{% endif %}">
+                    {% if sc >= 20 %}高匹配{% elif sc >= 8 %}中匹配{% else %}低匹配{% endif %}
+                  </span>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                  {% if p.grade %}
+                  <span class="badge bg-light text-dark border"><code class="small">{{ p.grade }}</code></span>
+                  {% endif %}
+                  {% if p.price_usd %}
+                  <span class="badge bg-success bg-opacity-10 text-success border border-success">
+                    ${{ p.price_usd }}/{{ p.unit }}
+                  </span>
+                  {% endif %}
+                  {% if p.lead_time_days %}
+                  <span class="badge bg-light text-dark border">{{ p.lead_time_days }}天</span>
+                  {% endif %}
+                </div>
+              </div>
+              {% endfor %}
+            {% else %}
+              <div class="text-warning fst-italic">
+                <i class="bi bi-exclamation-triangle me-1"></i>未匹配到产品，草稿可能不含报价
+              </div>
+            {% endif %}
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- 草稿编辑卡片 -->
+    <div class="card flex-fill">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <span class="fw-semibold"><i class="bi bi-pencil me-2 text-secondary"></i>回复草稿</span>
+        <div class="d-flex gap-1">
+          {% if draft.status not in ['sent', 'rejected', 'sending'] %}
+          <form method="post" action="/draft/{{ draft.id }}/regenerate" class="d-inline">
+            <button type="submit" class="btn btn-sm btn-outline-warning"
+                    onclick="return confirm('用 AI 重新生成草稿？当前内容将被覆盖。')">
+              <i class="bi bi-stars me-1"></i>重新生成
+            </button>
+          </form>
+          {% endif %}
+          <button class="btn btn-sm btn-outline-secondary btn-copy" data-target="#draft-body">
+            <i class="bi bi-clipboard me-1"></i>复制
+          </button>
+        </div>
+      </div>
+      <div class="card-body">
+        <form method="post" action="/draft/{{ draft.id }}/save" id="draft-form">
+          <div class="mb-2">
+            <label class="form-label small fw-semibold text-muted">收件人</label>
+            <input type="text" class="form-control form-control-sm bg-light"
+                   value="{{ draft.sender }}" disabled>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold text-muted">主题</label>
+            <input type="text" name="subject" id="draft-subject"
+                   class="form-control form-control-sm"
+                   value="{{ draft.subject }}"
+                   {% if draft.status in ['sent','rejected','sending'] %}disabled{% endif %}>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold text-muted">正文</label>
+            <textarea name="body" id="draft-body"
+                      class="form-control draft-body-area"
+                      rows="14"
+                      {% if draft.status in ['sent','rejected','sending'] %}disabled{% endif %}>{{ draft.body }}</textarea>
+            <div class="d-flex justify-content-between mt-1">
+              <span class="text-muted small" id="save-hint"></span>
+              <span class="text-muted small" id="word-count"></span>
+            </div>
+          </div>
+          {% if draft.status not in ['sent', 'rejected', 'sending'] %}
+          <div class="d-flex gap-2 mb-1">
+            <button type="submit" class="btn btn-sm btn-outline-secondary px-3">
+              <i class="bi bi-save me-1"></i>保存修改
+            </button>
+          </div>
+          {% endif %}
+        </form>
+      </div>
+    </div>
+
+    <!-- 审核操作 -->
+    {% if draft.status not in ['sent', 'rejected', 'sending'] %}
+    {% if company_bad_fields %}
+    <div class="alert alert-warning py-2 mb-2 small">
+      <i class="bi bi-exclamation-triangle-fill me-1"></i>
+      公司信息未完善（{{ company_bad_fields | join('、') }}），草稿签名可能包含占位符。
+      <a href="/settings/company" class="alert-link ms-1" target="_blank">立即填写 →</a>
+    </div>
+    {% endif %}
+    <div class="card">
+      <div class="card-body py-3">
+        <!-- 发送目标预览（点击前可确认收件人地址） -->
+        <div class="d-flex align-items-center gap-2 mb-3 px-1 py-2 rounded"
+             style="background:#f0f7ff;border:1px solid #cfe2ff">
+          <i class="bi bi-send text-primary"></i>
+          <span class="small text-muted">发送至：</span>
+          <span class="small fw-semibold text-primary text-truncate" style="max-width:320px"
+                title="{{ draft.sender }}">{{ draft.sender }}</span>
+        </div>
+        <div class="d-flex gap-3">
+          <form method="post" action="/draft/{{ draft.id }}/approve" class="flex-fill" id="approve-form">
+            <button type="button" class="btn btn-success w-100 fw-semibold"
+                    onclick="doApprove('approve-form', '{{ draft.sender }}')">
+              <i class="bi bi-send-fill me-2"></i>批准并发送
+            </button>
+          </form>
+          <form method="post" action="/draft/{{ draft.id }}/reject" class="flex-fill">
+            <button type="submit" class="btn btn-outline-danger w-100"
+                    onclick="return confirm('确认拒绝并忽略这封询盘？')">
+              <i class="bi bi-x-circle me-1"></i>拒绝
+            </button>
+          </form>
+        </div>
+        <div class="text-muted small mt-2 text-center">
+          <i class="bi bi-info-circle me-1"></i>建议先保存修改再发送
+        </div>
+      </div>
+    </div>
+    {% elif draft.status == 'sending' %}
+    <div class="alert alert-info mb-0 py-2">
+      <i class="bi bi-arrow-repeat spin me-2"></i>
+      正在发送中，请稍后刷新页面确认结果
+      <a href="/draft/{{ draft.id }}" class="btn btn-sm btn-outline-primary ms-3">刷新</a>
+    </div>
+    {% elif draft.status == 'sent' %}
+    <div class="alert alert-success mb-0 py-2">
+      <i class="bi bi-check-circle-fill me-2"></i>
+      已于 {{ (draft.sent_at or '')[:16] | replace('T', ' ') }} 发送
+    </div>
+    {% elif draft.status == 'send_failed' %}
+    <div class="alert alert-danger mb-0">
+      <div class="fw-semibold mb-1"><i class="bi bi-exclamation-triangle-fill me-2"></i>发送失败，邮件未送达买家</div>
+      <div class="small text-break mb-2">错误原因：{{ draft.send_error or '未知错误' }}</div>
+      <div class="d-flex gap-2">
+        <form method="post" action="/draft/{{ draft.id }}/approve" class="flex-fill" id="resend-form">
+          <button type="button" class="btn btn-danger w-100 fw-semibold"
+                  onclick="confirmAction('重新发送这封邮件给：\n{{ draft.sender }}', () => document.getElementById('resend-form').submit())">
+            <i class="bi bi-send-fill me-2"></i>重新发送
+          </button>
+        </form>
+        <form method="post" action="/draft/{{ draft.id }}/reject" class="flex-fill">
+          <button type="submit" class="btn btn-outline-secondary w-100">
+            <i class="bi bi-x-circle me-1"></i>放弃
+          </button>
+        </form>
+      </div>
+    </div>
+    {% else %}
+    <div class="alert alert-secondary mb-0 py-2">
+      <i class="bi bi-x-circle me-2"></i>已拒绝
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 字数统计 + 未保存边框高亮
+const bodyArea = document.getElementById('draft-body');
+const hint = document.getElementById('save-hint');
+const wordCount = document.getElementById('word-count');
+let _hasUnsaved = false;
+
+function updateWordCount() {
+  if (!bodyArea || !wordCount) return;
+  const len = bodyArea.value.length;
+  wordCount.textContent = len + ' 字符';
+}
+updateWordCount();
+
+if (bodyArea) {
+  bodyArea.addEventListener('input', () => {
+    _hasUnsaved = true;
+    updateWordCount();
+    if (hint) {
+      hint.textContent = '● 有未保存的修改';
+      hint.style.color = '#dc3545';
+    }
+    bodyArea.style.borderColor = '#ffc107';
+    bodyArea.style.boxShadow = '0 0 0 .2rem rgba(255,193,7,.2)';
+  });
+  document.getElementById('draft-form')?.addEventListener('submit', () => {
+    _hasUnsaved = false;
+    if (hint) hint.textContent = '';
+    bodyArea.style.borderColor = '';
+    bodyArea.style.boxShadow = '';
+  });
+}
+
+// 批准发送：先检查未保存，再弹确认
+function doApprove(formId, recipient) {
+  const prefix = _hasUnsaved ? '⚠️ 草稿有未保存的修改。\n\n' : '';
+  confirmAction(prefix + '确认发送这封回复邮件给：\n' + recipient,
+    () => document.getElementById(formId).submit());
+}
+
+// 重新初始化复制按钮（base.html 的脚本在 DOMContentLoaded 前运行）
+document.querySelectorAll('.btn-copy').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const target = document.querySelector(btn.dataset.target);
+    if (!target) return;
+    navigator.clipboard.writeText(target.value || target.textContent).then(() => {
+      btn.classList.add('copied');
+      btn.innerHTML = '<i class="bi bi-check2 me-1"></i>已复制';
+      setTimeout(() => {
+        btn.classList.remove('copied');
+        btn.innerHTML = '<i class="bi bi-clipboard me-1"></i>复制';
+      }, 2000);
+    });
+  });
+});
+</script>
+{% endblock %}

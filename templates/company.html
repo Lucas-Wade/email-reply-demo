@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}公司信息 — 询盘回复系统{% endblock %}
+
+{% block content %}
+<!-- 设置导航 -->
+<div class="d-flex gap-2 mb-4">
+  <a href="/settings" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-mailbox me-1"></i>邮箱账号 & 规则
+  </a>
+  <a href="/settings/products" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-box-seam me-1"></i>产品库
+  </a>
+  <a href="/settings/company" class="btn btn-sm btn-primary">
+    <i class="bi bi-building me-1"></i>公司信息
+  </a>
+  <a href="/settings/password" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-lock me-1"></i>修改密码
+  </a>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-md-7">
+    <h6 class="fw-semibold mb-3"><i class="bi bi-building me-2"></i>公司信息（写入 AI 草稿签名）</h6>
+
+    {% if saved %}
+    <div class="alert alert-success py-2 small mb-3">
+      <i class="bi bi-check-circle-fill me-1"></i>已保存并写入 .env
+    </div>
+    {% endif %}
+
+    {% if bad_fields %}
+    <div class="alert alert-warning py-2 small mb-3">
+      <i class="bi bi-exclamation-triangle-fill me-1"></i>
+      以下字段仍含占位符，请填写真实信息后 AI 草稿才会使用正确签名：
+      <strong>{{ bad_fields | join('、') }}</strong>
+    </div>
+    {% endif %}
+
+    <div class="card">
+      <div class="card-body">
+        <form method="post" action="/settings/company">
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">公司名称 <span class="text-danger">*</span></label>
+            <input type="text" name="name" class="form-control form-control-sm"
+                   value="{{ info.name }}" placeholder="Ruixin Tungsten Carbide Co., Ltd." required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">公司简介（用于 AI 生成签名描述）</label>
+            <input type="text" name="desc" class="form-control form-control-sm"
+                   value="{{ info.desc }}" placeholder="a manufacturer and exporter of tungsten carbide tools">
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">官网地址</label>
+            <input type="url" name="website" class="form-control form-control-sm"
+                   value="{{ info.website }}" placeholder="https://example.com">
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">联系邮箱 <span class="text-danger">*</span></label>
+            <input type="email" name="email" class="form-control form-control-sm"
+                   value="{{ info.email }}" placeholder="sales@yourcompany.com" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">联系电话 <span class="text-danger">*</span></label>
+            <input type="text" name="phone" class="form-control form-control-sm"
+                   value="{{ info.phone }}" placeholder="+86-138-xxxx-xxxx" required>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm px-4">
+            <i class="bi bi-floppy me-1"></i>保存
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <p class="text-muted small mt-3">
+      <i class="bi bi-info-circle me-1"></i>信息保存至 <code>.env</code> 文件，重启服务器后立即生效于新生成的草稿。
+    </p>
+  </div>
+</div>
+{% endblock %}

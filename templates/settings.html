@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+{% block title %}设置 — 询盘回复系统{% endblock %}
+
+{% block content %}
+<!-- 设置导航 -->
+<div class="d-flex gap-2 mb-4">
+  <a href="/settings" class="btn btn-sm {% if request.url.path == '/settings' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+    <i class="bi bi-mailbox me-1"></i>邮箱账号 & 规则
+  </a>
+  <a href="/settings/products" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-box-seam me-1"></i>产品库
+  </a>
+  <a href="/settings/company" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-building me-1"></i>公司信息
+  </a>
+  <a href="/settings/password" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-lock me-1"></i>修改密码
+  </a>
+</div>
+
+<h6 class="fw-semibold mb-3"><i class="bi bi-mailbox me-2"></i>邮箱账号管理</h6>
+
+<!-- ── 邮箱账号 ── -->
+<div class="card mb-4">
+  <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-envelope-at me-2 text-secondary"></i>收信账号列表</span>
+    <button class="btn btn-sm btn-primary" data-bs-toggle="collapse" data-bs-target="#add-account-form">
+      <i class="bi bi-plus-lg me-1"></i>添加账号
+    </button>
+  </div>
+
+  <!-- 添加表单（折叠） -->
+  <div class="collapse" id="add-account-form">
+    <div class="card-body border-bottom bg-light">
+      <form method="post" action="/settings/account/add" class="row g-2 align-items-end">
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold text-muted">备注名</label>
+          <input type="text" name="label" class="form-control form-control-sm" required>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold text-muted">邮箱地址（IMAP 用户名）</label>
+          <input type="email" name="imap_user" class="form-control form-control-sm" required>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold text-muted">密码</label>
+          <input type="password" name="imap_pass" class="form-control form-control-sm" required>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold text-muted">IMAP 服务器</label>
+          <input type="text" name="imap_host" class="form-control form-control-sm" required>
+        </div>
+        <div class="col-md-1">
+          <label class="form-label small fw-semibold text-muted">IMAP 端口</label>
+          <input type="number" name="imap_port" class="form-control form-control-sm" value="993">
+        </div>
+        <div class="col-md-1">
+          <label class="form-label small fw-semibold text-muted">SMTP 端口</label>
+          <input type="number" name="smtp_port" class="form-control form-control-sm" value="465">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold text-muted">SMTP 服务器（选填）</label>
+          <input type="text" name="smtp_host" class="form-control form-control-sm"
+                 placeholder="留空则同 IMAP">
+        </div>
+        <div class="col-md-1 d-flex align-items-end">
+          <button type="submit" class="btn btn-success btn-sm w-100">保存</button>
+        </div>
+        <div class="col-12">
+          <p class="text-muted mb-0" style="font-size:.78rem">
+            <i class="bi bi-info-circle me-1"></i>
+            SMTP 服务器留空则与 IMAP 相同；SMTP 用户名/密码默认复用 IMAP 凭据。
+          </p>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% if accounts %}
+  <div class="table-responsive">
+    <table class="table align-middle mb-0" style="font-size:.88rem">
+      <thead class="table-light">
+        <tr>
+          <th>备注名</th>
+          <th>邮箱地址</th>
+          <th>IMAP 服务器</th>
+          <th>状态</th>
+          <th>添加时间</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for acc in accounts %}
+        <tr class="{% if not acc.active %}text-muted{% endif %}">
+          <td class="fw-semibold">{{ acc.label }}</td>
+          <td class="font-monospace small">{{ acc.imap_user }}</td>
+          <td class="text-muted small">{{ acc.imap_host }}:{{ acc.imap_port }}</td>
+          <td>
+            {% if acc.active %}
+              <span class="badge bg-success-subtle text-success border border-success-subtle">启用</span>
+            {% else %}
+              <span class="badge bg-secondary-subtle text-secondary border">暂停</span>
+            {% endif %}
+          </td>
+          <td class="text-muted small text-nowrap">{{ (acc.created_at or '')[:10] }}</td>
+          <td>
+            <div class="d-flex gap-1">
+              <form method="post" action="/settings/account/{{ acc.id }}/toggle">
+                <button type="submit" class="btn btn-sm btn-outline-secondary px-2"
+                        title="{{ '暂停' if acc.active else '启用' }}">
+                  <i class="bi bi-{% if acc.active %}pause{% else %}play{% endif %}"></i>
+                </button>
+              </form>
+              <form method="post" action="/settings/account/{{ acc.id }}/delete"
+                    onsubmit="return confirm('删除账号 {{ acc.imap_user }}？已收取的邮件不受影响。')">
+                <button type="submit" class="btn btn-sm btn-outline-danger px-2">
+                  <i class="bi bi-trash3"></i>
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card-body text-center text-muted py-4 small">
+    <i class="bi bi-envelope-x fs-2 d-block mb-2 opacity-30"></i>
+    暂无账号。点击"添加账号"配置销售人员的企业邮箱。<br>
+    <span class="text-warning">如果未添加任何账号，系统将使用 .env 中的默认邮箱。</span>
+  </div>
+  {% endif %}
+</div>
+
+<h6 class="fw-semibold mb-3"><i class="bi bi-shield-check me-2"></i>发件人黑白名单</h6>
+
+<div class="row g-3">
+
+  <!-- 添加规则表单 -->
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-plus-circle me-2 text-secondary"></i>添加规则
+      </div>
+      <div class="card-body">
+        <form method="post" action="/settings/rule/add">
+          <div class="mb-3">
+            <label class="form-label small fw-semibold text-muted">匹配模式</label>
+            <input type="text" name="pattern" class="form-control form-control-sm"
+                   required>
+            <div class="form-text">支持域名或完整邮件地址，大小写不敏感</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold text-muted">规则类型</label>
+            <div class="d-flex gap-3">
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="rule" value="block" id="r-block" checked>
+                <label class="form-check-label text-danger fw-semibold" for="r-block">
+                  <i class="bi bi-slash-circle me-1"></i>黑名单（屏蔽）
+                </label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="rule" value="trust" id="r-trust">
+                <label class="form-check-label text-success fw-semibold" for="r-trust">
+                  <i class="bi bi-check-circle me-1"></i>白名单（信任）
+                </label>
+              </div>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold text-muted">备注（可选）</label>
+            <input type="text" name="note" class="form-control form-control-sm"
+                   >
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm w-100">
+            <i class="bi bi-save me-1"></i>保存规则
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-body py-3">
+        <h6 class="fw-semibold small mb-2"><i class="bi bi-info-circle me-1 text-info"></i>规则说明</h6>
+        <ul class="small text-muted mb-0 ps-3">
+          <li><strong class="text-danger">黑名单</strong>：邮件直接标记为垃圾，不做 AI 分类</li>
+          <li><strong class="text-success">白名单</strong>：跳过分类，直接作为有效询盘处理</li>
+          <li>匹配规则：模式字符串包含在发件人地址中即触发</li>
+          <li>同一模式只能有一条规则（重复添加会覆盖）</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 规则列表 -->
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header bg-white fw-semibold d-flex justify-content-between">
+        <span><i class="bi bi-list-ul me-2 text-secondary"></i>当前规则</span>
+        <span class="badge bg-secondary rounded-pill">{{ rules|length }}</span>
+      </div>
+      {% if rules %}
+      <div class="table-responsive">
+        <table class="table align-middle mb-0" style="font-size:.88rem">
+          <thead class="table-light">
+            <tr>
+              <th>匹配模式</th>
+              <th>类型</th>
+              <th>备注</th>
+              <th>添加时间</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in rules %}
+            <tr>
+              <td class="fw-semibold font-monospace">{{ r.pattern }}</td>
+              <td>
+                {% if r.rule == 'block' %}
+                  <span class="badge bg-danger-subtle text-danger border border-danger-subtle">
+                    <i class="bi bi-slash-circle me-1"></i>黑名单
+                  </span>
+                {% else %}
+                  <span class="badge bg-success-subtle text-success border border-success-subtle">
+                    <i class="bi bi-check-circle me-1"></i>白名单
+                  </span>
+                {% endif %}
+              </td>
+              <td class="text-muted">{{ r.note or '—' }}</td>
+              <td class="text-muted small text-nowrap">{{ (r.created_at or '')[:10] }}</td>
+              <td>
+                <form method="post" action="/settings/rule/{{ r.id }}/delete"
+                      onsubmit="return confirm('删除规则：{{ r.pattern }}？')">
+                  <button type="submit" class="btn btn-sm btn-outline-danger px-2">
+                    <i class="bi bi-trash3"></i>
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="text-center text-muted py-5">
+        <i class="bi bi-shield fs-2 d-block mb-2 opacity-30"></i>
+        暂无规则。添加域名或邮箱地址以屏蔽垃圾邮件或标记信任发件人。
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}
