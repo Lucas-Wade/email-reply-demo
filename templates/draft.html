@@ -69,9 +69,9 @@
     {% set products = (draft.quoted_products | from_json) if draft.quoted_products else [] %}
     {% set inquiry = (draft.parsed_inquiry | from_json) if draft.parsed_inquiry else {} %}
     {% set reqs = inquiry.products_requested or [] %}
-    <div class="card border-warning" style="border-width:2px!important">
-      <div class="card-header bg-warning bg-opacity-10 fw-semibold d-flex align-items-center gap-2">
-        <i class="bi bi-shield-check text-warning"></i>
+    <div class="card" style="border-left: 4px solid #e6a817 !important; border-radius: 0 0.75rem 0.75rem 0.75rem;">
+      <div class="card-header fw-semibold d-flex align-items-center gap-2" style="background:transparent">
+        <i class="bi bi-shield-check" style="color:#e6a817"></i>
         核验：AI理解是否正确？
         <span class="ms-auto text-muted fw-normal small">发送前请逐项确认</span>
       </div>
@@ -79,7 +79,7 @@
         <div class="row g-0" style="font-size:.83rem">
 
           <!-- 左：AI从询盘里读到的 -->
-          <div class="col-6 border-end p-3">
+          <div class="col-6 p-3" style="border-right: 1px solid rgba(195,198,207,0.2)">
             <div class="text-muted small fw-semibold mb-2 text-uppercase" style="letter-spacing:.04em">
               AI读到的需求
             </div>
@@ -167,8 +167,8 @@
 
     <!-- 草稿编辑卡片 -->
     <div class="card flex-fill">
-      <div class="card-header bg-white d-flex justify-content-between align-items-center">
-        <span class="fw-semibold"><i class="bi bi-pencil me-2 text-secondary"></i>回复草稿</span>
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="fw-semibold"><i class="bi bi-pencil me-2" style="color:var(--on-surface-var)"></i>回复草稿</span>
         <div class="d-flex gap-1">
           {% if draft.status not in ['sent', 'rejected', 'sending'] %}
           <form method="post" action="/draft/{{ draft.id }}/regenerate" class="d-inline">
@@ -231,9 +231,9 @@
     <div class="card">
       <div class="card-body py-3">
         <!-- 发送目标预览（点击前可确认收件人地址） -->
-        <div class="d-flex align-items-center gap-2 mb-3 px-1 py-2 rounded"
-             style="background:#f0f7ff;border:1px solid #cfe2ff">
-          <i class="bi bi-send text-primary"></i>
+        <div class="d-flex align-items-center gap-2 mb-3 px-3 py-2 rounded"
+             style="background:var(--surface-panel);border-left:3px solid var(--secondary)">
+          <i class="bi bi-send" style="color:var(--secondary)"></i>
           <span class="small text-muted">发送至：</span>
           <span class="small fw-semibold text-primary text-truncate" style="max-width:320px"
                 title="{{ draft.sender }}">{{ draft.sender }}</span>
