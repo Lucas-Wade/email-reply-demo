@@ -69,9 +69,9 @@
     {% set products = (draft.quoted_products | from_json) if draft.quoted_products else [] %}
     {% set inquiry = (draft.parsed_inquiry | from_json) if draft.parsed_inquiry else {} %}
     {% set reqs = inquiry.products_requested or [] %}
-    <div class="card" style="border-left: 4px solid #e6a817 !important; border-radius: 0 0.75rem 0.75rem 0.75rem;">
+    <div class="card" style="border-left: 4px solid var(--accent-verification) !important; border-radius: 0 0.75rem 0.75rem 0.75rem;">
       <div class="card-header fw-semibold d-flex align-items-center gap-2" style="background:transparent">
-        <i class="bi bi-shield-check" style="color:#e6a817"></i>
+        <i class="bi bi-shield-check" style="color:var(--accent-verification)"></i>
         核验：AI理解是否正确？
         <span class="ms-auto text-muted fw-normal small">发送前请逐项确认</span>
       </div>
