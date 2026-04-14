@@ -69,7 +69,7 @@ def _push_event(data: dict):
 
 import database as db
 from auth import get_session_user, verify_imap, detect_provider
-from email_client import fetch_unread_emails, fetch_recent_emails, send_email, mark_emails_seen
+from email_client import fetch_unread_emails, fetch_recent_emails, send_email, mark_emails_seen, start_idle_watcher
 from ai_processor import (classify_email, parse_inquiry, generate_draft,
                           background_check, generate_followup_draft, score_buyer_intent,
                           extract_products_from_url, describe_email_images)
@@ -351,11 +351,15 @@ async def lifespan(app: FastAPI):
     scheduler.add_listener(_on_job_error,    EVENT_JOB_ERROR)
     scheduler.add_listener(_on_job_executed, EVENT_JOB_EXECUTED)
     scheduler.start()
-    print(f"✓ 定时任务启动，每 {interval} 秒检查邮件，09:00 检查跟进，02:00 自动备份")
+    # IMAP IDLE 实时监听：服务器推送新邮件时立即触发处理，不受轮询间隔限制
+    # 仅监听 .env / 首个账号；多账号场景 60s 轮询兜底仍会覆盖所有账号
+    _idle_stop = start_idle_watcher(process_new_emails)
+    print(f"✓ 定时任务启动，每 {interval} 秒检查邮件（IMAP IDLE 实时监听已启用），09:00 检查跟进，02:00 自动备份")
     bad = _company_has_placeholder()
     if bad:
         print(f"[⚠️  配置] 公司信息含占位符，AI 草稿签名将不正确，请前往 /settings/company 完善：{bad}")
     yield
+    _idle_stop.set()
     scheduler.shutdown()
 
 

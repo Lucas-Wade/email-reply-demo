@@ -8,6 +8,8 @@ from email.mime.multipart import MIMEMultipart
 import os
 import re
 import html as _html_mod
+import threading
+import time
 
 
 def _decode_str(value):
@@ -235,6 +237,48 @@ def fetch_recent_emails(max_count=100, creds: dict = None):
 
     all_results.sort(key=lambda x: x["received_at"] or "", reverse=True)
     return all_results[:max_count]
+
+
+def start_idle_watcher(on_new_mail, creds: dict = None) -> threading.Event:
+    """
+    启动 IMAP IDLE 监听线程（RFC 2177）。
+    服务器推送新邮件通知时立即调用 on_new_mail()，无需等待轮询间隔。
+    主流 IMAP 服务商（Gmail、Outlook、QQ 企业邮箱等）均支持 IDLE。
+
+    返回 threading.Event，调用 .set() 可停止监听（应用退出时调用）。
+
+    参考：https://datatracker.ietf.org/doc/html/rfc2177
+    imap-tools idle API：https://github.com/ikvk/imap_tools#idle
+    """
+    stop_event = threading.Event()
+
+    def _watch():
+        from imap_tools import MailBox
+        c = creds or {}
+        host     = c.get("imap_host") or os.getenv("IMAP_HOST")
+        port     = int(c.get("imap_port") or os.getenv("IMAP_PORT", "993"))
+        user     = c.get("imap_user") or os.getenv("IMAP_USER")
+        password = c.get("imap_pass") or os.getenv("IMAP_PASS")
+        if not all([host, user, password]):
+            return
+
+        while not stop_event.is_set():
+            try:
+                with MailBox(host, port).login(user, password) as mailbox:
+                    while not stop_event.is_set():
+                        # idle.wait() = start IDLE → 等待服务器推送 → stop IDLE
+                        # timeout=55s：RFC 2177 建议 ≤29 分钟重新发 IDLE，55s 是保守安全值
+                        # 服务器有任何事件（新邮件/删除/标志变更）时立即返回非空列表
+                        responses = mailbox.idle.wait(timeout=55)
+                        if responses and not stop_event.is_set():
+                            on_new_mail()
+            except Exception:
+                if not stop_event.is_set():
+                    time.sleep(30)   # 连接断开后等 30s 重连，避免高频重试
+
+    t = threading.Thread(target=_watch, daemon=True, name="imap-idle")
+    t.start()
+    return stop_event
 
 
 def send_email(to_address: str, subject: str, body: str, creds: dict = None) -> None:
