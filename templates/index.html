@@ -48,59 +48,34 @@
 
 <!-- 统计卡片：flex 布局，5 张等宽自适应 -->
 <div class="d-flex flex-wrap gap-3 mb-4">
-  <div class="card stat-card p-3 flex-fill" style="min-width:130px">
-    <div class="d-flex align-items-center gap-3">
-      <div class="rounded-3 p-2" style="background:#e8f0fe">
-        <i class="bi bi-envelope fs-4 text-primary"></i>
-      </div>
-      <div>
-        <div class="stat-num text-primary">{{ stats.total }}</div>
-        <div class="text-muted small">总邮件数</div>
-      </div>
+  <div class="card stat-card p-4 flex-fill" style="min-width:130px">
+    <div class="stat-num">{{ stats.total }}</div>
+    <div class="small mt-2" style="color:var(--on-surface-var)">
+      <i class="bi bi-envelope me-1 opacity-50"></i>总邮件数
     </div>
   </div>
-  <div class="card stat-card p-3 flex-fill" style="min-width:130px">
-    <div class="d-flex align-items-center gap-3">
-      <div class="rounded-3 p-2" style="background:#d1f0e0">
-        <i class="bi bi-briefcase fs-4 text-success"></i>
-      </div>
-      <div>
-        <div class="stat-num text-success">{{ stats.inquiries }}</div>
-        <div class="text-muted small">有效询盘</div>
-      </div>
+  <div class="card stat-card p-4 flex-fill" style="min-width:130px">
+    <div class="stat-num">{{ stats.inquiries }}</div>
+    <div class="small mt-2" style="color:var(--on-surface-var)">
+      <i class="bi bi-briefcase me-1 opacity-50"></i>有效询盘
     </div>
   </div>
-  <div class="card stat-card p-3 flex-fill" style="min-width:130px">
-    <div class="d-flex align-items-center gap-3">
-      <div class="rounded-3 p-2" style="background:#fff3cd">
-        <i class="bi bi-hourglass-split fs-4 text-warning"></i>
-      </div>
-      <div>
-        <div class="stat-num text-warning">{{ stats.pending }}</div>
-        <div class="text-muted small">待审核草稿</div>
-      </div>
+  <div class="card stat-card p-4 flex-fill" style="min-width:130px">
+    <div class="stat-num" style="color:#b35c00">{{ stats.pending }}</div>
+    <div class="small mt-2" style="color:var(--on-surface-var)">
+      <i class="bi bi-hourglass-split me-1 opacity-50"></i>待审核草稿
     </div>
   </div>
-  <div class="card stat-card p-3 flex-fill" style="min-width:130px">
-    <div class="d-flex align-items-center gap-3">
-      <div class="rounded-3 p-2" style="background:#d1f0e0">
-        <i class="bi bi-send-check fs-4 text-success"></i>
-      </div>
-      <div>
-        <div class="stat-num text-success">{{ stats.sent }}</div>
-        <div class="text-muted small">已发送回复</div>
-      </div>
+  <div class="card stat-card p-4 flex-fill" style="min-width:130px">
+    <div class="stat-num" style="color:#1a6b3a">{{ stats.sent }}</div>
+    <div class="small mt-2" style="color:var(--on-surface-var)">
+      <i class="bi bi-send-check me-1 opacity-50"></i>已发送回复
     </div>
   </div>
-  <div class="card stat-card p-3 flex-fill" style="min-width:130px">
-    <div class="d-flex align-items-center gap-3">
-      <div class="rounded-3 p-2" style="background:#fde8f0">
-        <i class="bi bi-trophy fs-4 text-danger"></i>
-      </div>
-      <div>
-        <div class="stat-num text-danger">{{ stats.won }}</div>
-        <div class="text-muted small">已成单</div>
-      </div>
+  <div class="card stat-card p-4 flex-fill" style="min-width:130px">
+    <div class="stat-num" style="color:var(--error)">{{ stats.won }}</div>
+    <div class="small mt-2" style="color:var(--on-surface-var)">
+      <i class="bi bi-trophy me-1 opacity-50"></i>已成单
     </div>
   </div>
 </div>
