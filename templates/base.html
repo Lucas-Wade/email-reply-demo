@@ -159,7 +159,7 @@
     /* ── Match score pill ── */
     .score-high { background: #d1f0e0; color: #0f5132; }
     .score-mid  { background: #fff3cd; color: #664d03; }
-    .score-low  { background: #fde8e8; color: #ba1a1a; }
+    .score-low  { background: #fde8e8; color: var(--error); }
 
     /* ── Toast ── */
     .toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 9999; }
@@ -172,8 +172,8 @@
        Button overrides (Bootstrap reset)
     ══════════════════════════════════════════ */
     .btn-primary {
-      background: linear-gradient(135deg, #1a3a5c, #002444);
-      border-color: #002444;
+      background: linear-gradient(135deg, var(--brand), var(--primary));
+      border-color: var(--primary);
       border-radius: 0.375rem;
       font-weight: 600;
       transition: background 200ms ease-in-out, border-color 200ms ease-in-out;
