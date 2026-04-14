@@ -30,8 +30,10 @@
       --badge-bg:       #dae2ff;
       --badge-text:     #00419e;
       /* Semantic */
-      --error:          #ba1a1a;
-      --urgent:         #4f3300;
+      --error:           #ba1a1a;
+      --urgent:          #4f3300;
+      --status-pending:  #b35c00;
+      --status-sent:     #1a6b3a;
       /* Elevation */
       --shadow-ambient: 0px 12px 32px rgba(25, 28, 31, 0.06);
     }
@@ -91,8 +93,8 @@
     }
 
     /* ── Status text ── */
-    .s-pending { color: #b35c00; font-weight: 600; }
-    .s-sent    { color: #1a6b3a; font-weight: 600; }
+    .s-pending { color: var(--status-pending); font-weight: 600; }
+    .s-sent    { color: var(--status-sent); font-weight: 600; }
     .s-rejected{ color: var(--on-surface-var); }
     .s-ignored { color: var(--on-surface-var); }
     .s-new     { color: var(--secondary); }
@@ -166,7 +168,7 @@
 
     /* ── Copy btn ── */
     .btn-copy { transition: all .2s; }
-    .btn-copy.copied { background: #1a6b3a; color: #fff; border-color: #1a6b3a; }
+    .btn-copy.copied { background: var(--status-sent); color: #fff; border-color: var(--status-sent); }
 
     /* ══════════════════════════════════════════
        Button overrides (Bootstrap reset)
