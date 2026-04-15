@@ -270,6 +270,12 @@
       <!-- 分隔 -->
       <span class="text-white-50 mx-1 d-none d-md-inline">|</span>
 
+      <!-- AI 状态指示器 -->
+      <span id="ai-indicator" class="d-flex align-items-center gap-1 me-1" title="AI 正常" style="cursor:default">
+        <span id="ai-dot" class="rounded-circle d-inline-block" style="width:8px;height:8px;background:var(--status-sent)"></span>
+        <span id="ai-label" class="small text-white-50" style="display:none"></span>
+      </span>
+
       <!-- 检查邮件 -->
       <span id="poll-status" class="text-white-50 small d-none">
         <i class="bi bi-arrow-repeat spin me-1"></i><span class="d-none d-md-inline">检查中…</span>
@@ -301,6 +307,18 @@
     </div>
   </div>
 </nav>
+
+<!-- AI 离线告警横幅 -->
+<div id="ai-banner" class="alert alert-danger mb-0 rounded-0 d-none" role="alert">
+  <div class="container-lg d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div>
+      <i class="bi bi-exclamation-triangle-fill me-2"></i>
+      <strong>AI 服务不可用</strong> — 邮件分类和草稿生成已暂停，邮件仍在正常收取。
+      <span id="ai-banner-detail" class="text-muted small ms-2"></span>
+    </div>
+    <a href="/settings/ai" class="btn btn-sm btn-outline-danger">前往配置 API Key</a>
+  </div>
+</div>
 
 <div class="container-lg pb-5">
   {% block content %}{% endblock %}
@@ -334,6 +352,8 @@
 <style>
 @keyframes spin { to { transform: rotate(360deg); } }
 .spin { display: inline-block; animation: spin 1s linear infinite; }
+@keyframes pulse-anim { 0%,100%{opacity:1} 50%{opacity:.4} }
+.pulse { animation: pulse-anim 1.5s infinite; }
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -356,7 +376,51 @@ function refreshBadges() {
       if (d.overdue_followups > 0) { bf.textContent = d.overdue_followups; bf.classList.remove('d-none'); }
       else bf.classList.add('d-none');
     }
-  }).catch(() => {});
+    // AI 状态指示器
+    const dot = document.getElementById('ai-dot');
+    const label = document.getElementById('ai-label');
+    const indicator = document.getElementById('ai-indicator');
+    const banner = document.getElementById('ai-banner');
+    const bannerDetail = document.getElementById('ai-banner-detail');
+    if (dot && d.ai_status) {
+      if (d.ai_status === 'healthy') {
+        dot.style.background = 'var(--status-sent)';
+        dot.classList.remove('pulse');
+        label.style.display = 'none';
+        indicator.title = 'AI 正常';
+        indicator.onclick = null;
+        indicator.style.cursor = 'default';
+        if (banner) banner.classList.add('d-none');
+      } else if (d.ai_status === 'degraded') {
+        dot.style.background = 'var(--status-pending)';
+        dot.classList.add('pulse');
+        label.style.display = '';
+        label.textContent = 'AI 波动';
+        indicator.title = 'AI 服务响应异常';
+        if (banner) banner.classList.add('d-none');
+      } else {
+        dot.style.background = 'var(--bs-danger, #dc3545)';
+        dot.classList.remove('pulse');
+        label.style.display = '';
+        label.textContent = 'AI 离线';
+        indicator.title = '点击配置 API Key';
+        indicator.style.cursor = 'pointer';
+        indicator.onclick = () => { location.href = '/settings/ai'; };
+        if (banner) {
+          banner.classList.remove('d-none');
+          let detail = '';
+          if (d.ai_last_ok) detail += '上次正常：' + d.ai_last_ok.replace('T', ' ').slice(0, 16);
+          if (d.ai_error) detail += (detail ? '  |  ' : '') + '错误：' + d.ai_error.slice(0, 80);
+          if (bannerDetail) bannerDetail.textContent = detail;
+        }
+      }
+    }
+  }).catch(() => {
+    const bd = document.getElementById('badge-drafts');
+    const bf = document.getElementById('badge-followups');
+    if (bd) bd.classList.add('d-none');
+    if (bf) bf.classList.add('d-none');
+  });
 }
 refreshBadges();
 setInterval(refreshBadges, 60000); // 每分钟刷新一次角标
@@ -404,6 +468,22 @@ document.querySelectorAll('.btn-copy').forEach(btn => {
     });
   });
 });
+
+// SSE: AI 状态变化实时推送
+(function() {
+  const es = new EventSource('/events');
+  es.addEventListener('ai_status_changed', (e) => {
+    try {
+      const d = JSON.parse(e.data);
+      if (d.new === 'healthy') {
+        showToast('AI 服务已恢复', 'success');
+      } else if (d.new === 'unavailable') {
+        showToast('AI 服务不可用：' + (d.error || '').slice(0, 60), 'danger');
+      }
+    } catch(_) {}
+    refreshBadges();
+  });
+})();
 </script>
 {% block scripts %}{% endblock %}
 </body>
