@@ -1186,6 +1186,114 @@ async def company_settings_save(
     )
 
 
+# ── AI 配置路由 ──────────────────────────────────────────────────────────────
+
+def _save_ai_config_to_env(provider: str, api_key: str | None):
+    """将 LLM 提供商和 API Key 写回 .env 并热更新 os.environ"""
+    _env_path = os.path.join(os.path.dirname(__file__), ".env")
+    with open(_env_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # 更新 LLM_PROVIDER
+    if "LLM_PROVIDER=" in content:
+        content = _re.sub(r"^LLM_PROVIDER=.*", f"LLM_PROVIDER={provider}", content, flags=_re.MULTILINE)
+    else:
+        content += f"\nLLM_PROVIDER={provider}"
+    os.environ["LLM_PROVIDER"] = provider
+
+    # 更新 API Key（仅在用户填了新值时）
+    if api_key:
+        from ai_processor import PROVIDERS
+        key_env = PROVIDERS[provider]["api_key_env"]
+        if f"{key_env}=" in content:
+            content = _re.sub(rf"^{key_env}=.*", f"{key_env}={api_key}", content, flags=_re.MULTILINE)
+        else:
+            content += f"\n{key_env}={api_key}"
+        os.environ[key_env] = api_key
+
+    with open(_env_path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+
+def _mask_key(key: str) -> str:
+    """遮蔽 API Key：前3后3，中间 ****"""
+    if not key or len(key) < 8:
+        return key or ""
+    return key[:3] + "****" + key[-3:]
+
+
+@app.get("/settings/ai", response_class=HTMLResponse)
+async def ai_settings_page(request: Request):
+    from ai_processor import PROVIDERS
+    health = get_ai_health()
+    provider = os.getenv("LLM_PROVIDER", "qianwen")
+    key_env = PROVIDERS.get(provider, PROVIDERS["qianwen"])["api_key_env"]
+    raw_key = os.getenv(key_env, "")
+    return templates.TemplateResponse(
+        request=request, name="settings_ai.html",
+        context={"ai": health, "current_provider": provider,
+                 "masked_key": _mask_key(raw_key)},
+    )
+
+
+@app.post("/settings/ai/save", response_class=HTMLResponse)
+async def ai_settings_save(
+    request: Request,
+    provider: str = Form("qianwen"),
+    api_key:  str = Form(""),
+):
+    from ai_processor import PROVIDERS
+    if provider not in PROVIDERS:
+        provider = "qianwen"
+    api_key = api_key.strip() or None
+    _save_ai_config_to_env(provider, api_key)
+
+    # 保存后自动测试
+    change = check_ai_health()
+    health = get_ai_health()
+    test_ok = health["status"] == "healthy"
+    test_error = health["error_message"] if not test_ok else None
+
+    if change:
+        _push_event({"type": "ai_status_changed", "old": change[0], "new": change[1],
+                      "error": health.get("error_message")})
+
+    key_env = PROVIDERS.get(provider, PROVIDERS["qianwen"])["api_key_env"]
+    raw_key = os.getenv(key_env, "")
+    return templates.TemplateResponse(
+        request=request, name="settings_ai.html",
+        context={"ai": health, "current_provider": provider,
+                 "masked_key": _mask_key(raw_key),
+                 "saved": True, "save_test_ok": test_ok, "save_test_error": test_error},
+    )
+
+
+@app.post("/settings/ai/test", response_class=HTMLResponse)
+async def ai_settings_test(request: Request):
+    from ai_processor import PROVIDERS
+    change = check_ai_health()
+    health = get_ai_health()
+    provider = os.getenv("LLM_PROVIDER", "qianwen")
+    key_env = PROVIDERS.get(provider, PROVIDERS["qianwen"])["api_key_env"]
+    raw_key = os.getenv(key_env, "")
+
+    if change:
+        _push_event({"type": "ai_status_changed", "old": change[0], "new": change[1],
+                      "error": health.get("error_message")})
+
+    test_result = {
+        "ok": health["status"] == "healthy",
+        "model": os.getenv("LLM_MODEL", "qwen-plus"),
+        "error": health["error_message"],
+    }
+    return templates.TemplateResponse(
+        request=request, name="settings_ai.html",
+        context={"ai": health, "current_provider": provider,
+                 "masked_key": _mask_key(raw_key),
+                 "test_result": test_result},
+    )
+
+
 # ── 产品库管理 ────────────────────────────────────────────────────────────────
 
 @app.get("/settings/products", response_class=HTMLResponse)

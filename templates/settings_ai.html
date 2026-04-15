@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}AI 配置 — 询盘回复系统{% endblock %}
+
+{% block content %}
+<!-- 设置导航 -->
+<div class="d-flex gap-2 mb-4">
+  <a href="/settings" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-mailbox me-1"></i>邮箱账号 & 规则
+  </a>
+  <a href="/settings/products" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-box-seam me-1"></i>产品库
+  </a>
+  <a href="/settings/company" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-building me-1"></i>公司信息
+  </a>
+  <a href="/settings/ai" class="btn btn-sm {% if request.url.path == '/settings/ai' %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+    <i class="bi bi-cpu me-1"></i>AI 配置
+  </a>
+  <a href="/settings/password" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-lock me-1"></i>修改密码
+  </a>
+</div>
+
+<div class="row g-4">
+  <!-- 左列：状态 + 配置 -->
+  <div class="col-lg-7">
+    <!-- AI 状态卡片 -->
+    <div class="card mb-4">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-activity me-2 text-secondary"></i>AI 服务状态
+      </div>
+      <div class="card-body">
+        <div class="d-flex align-items-center gap-3 mb-3">
+          {% if ai.status == 'healthy' %}
+            <span class="rounded-circle d-inline-block" style="width:12px;height:12px;background:var(--status-sent)"></span>
+            <span class="fw-semibold text-success">正常运行</span>
+          {% elif ai.status == 'degraded' %}
+            <span class="rounded-circle d-inline-block pulse" style="width:12px;height:12px;background:var(--status-pending)"></span>
+            <span class="fw-semibold text-warning">响应波动</span>
+          {% else %}
+            <span class="rounded-circle d-inline-block" style="width:12px;height:12px;background:var(--bs-danger, #dc3545)"></span>
+            <span class="fw-semibold text-danger">不可用</span>
+          {% endif %}
+        </div>
+        <div class="small text-muted">
+          {% if ai.last_ok %}
+            <div><i class="bi bi-check-circle me-1 text-success"></i>上次成功：{{ ai.last_ok[:19] | replace('T', ' ') }}</div>
+          {% endif %}
+          {% if ai.fail_count > 0 %}
+            <div><i class="bi bi-x-circle me-1 text-danger"></i>连续失败：{{ ai.fail_count }} 次</div>
+          {% endif %}
+          {% if ai.error_message %}
+            <div class="mt-1"><i class="bi bi-bug me-1 text-warning"></i>错误信息：<code>{{ ai.error_message[:120] }}</code></div>
+          {% endif %}
+        </div>
+        <form method="post" action="/settings/ai/test" class="mt-3">
+          <button type="submit" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-arrow-repeat me-1"></i>立即测试连接
+          </button>
+        </form>
+        {% if test_result is defined and test_result is not none %}
+          <div class="alert alert-{{ 'success' if test_result.ok else 'danger' }} mt-3 mb-0 small">
+            {% if test_result.ok %}
+              <i class="bi bi-check-circle-fill me-1"></i>连接成功！模型 {{ test_result.model }} 响应正常。
+            {% else %}
+              <i class="bi bi-x-circle-fill me-1"></i>连接失败：{{ test_result.error }}
+            {% endif %}
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- LLM 配置表单 -->
+    <div class="card">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-key me-2 text-secondary"></i>LLM 提供商配置
+      </div>
+      <div class="card-body">
+        {% if saved is defined and saved %}
+          <div class="alert alert-success small py-2">
+            <i class="bi bi-check-circle me-1"></i>已保存{% if save_test_ok %}，连接测试通过{% elif save_test_ok is not none and not save_test_ok %}，但连接测试失败：{{ save_test_error }}{% endif %}
+          </div>
+        {% endif %}
+        <form method="post" action="/settings/ai/save">
+          <div class="mb-3">
+            <label class="form-label small fw-semibold text-muted">LLM 提供商</label>
+            <select name="provider" class="form-select form-select-sm">
+              <option value="qianwen" {% if current_provider == 'qianwen' %}selected{% endif %}>通义千问（Qianwen）</option>
+              <option value="zhipu" {% if current_provider == 'zhipu' %}selected{% endif %}>智谱 AI（Zhipu）</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold text-muted">API Key</label>
+            <input type="text" name="api_key" class="form-control form-control-sm font-monospace"
+                   placeholder="输入新的 API Key（留空则不修改）"
+                   autocomplete="off">
+            {% if masked_key %}
+              <div class="form-text">当前 Key：<code>{{ masked_key }}</code></div>
+            {% else %}
+              <div class="form-text text-warning">未配置 API Key</div>
+            {% endif %}
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-save me-1"></i>保存并测试
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右列：说明 -->
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header bg-white fw-semibold">
+        <i class="bi bi-info-circle me-2 text-secondary"></i>使用说明
+      </div>
+      <div class="card-body small text-muted">
+        <h6 class="fw-semibold text-dark">通义千问（推荐）</h6>
+        <ol class="ps-3 mb-3">
+          <li>注册 <a href="https://dashscope.console.aliyun.com/" target="_blank">阿里云百炼平台</a></li>
+          <li>进入「API-KEY 管理」创建 Key</li>
+          <li>复制 Key 粘贴到左侧输入框</li>
+        </ol>
+
+        <h6 class="fw-semibold text-dark">智谱 AI</h6>
+        <ol class="ps-3 mb-3">
+          <li>注册 <a href="https://open.bigmodel.cn/" target="_blank">智谱开放平台</a></li>
+          <li>在「API keys」中创建 Key</li>
+          <li>选择提供商为"智谱 AI"并粘贴 Key</li>
+        </ol>
+
+        <h6 class="fw-semibold text-dark">常见问题</h6>
+        <ul class="ps-3 mb-0">
+          <li><strong>额度用尽</strong>：错误信息含 "quota" 或 "balance"，需去平台充值</li>
+          <li><strong>Key 无效</strong>：错误信息含 "401" 或 "authentication"，请重新生成 Key</li>
+          <li><strong>服务超时</strong>：可能是平台临时故障，稍后会自动恢复</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
