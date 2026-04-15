@@ -469,7 +469,14 @@ def _ensure_secret_key() -> str:
 
 # SessionMiddleware 必须在 auth_middleware 之后 add（Starlette 后加的包在外层，先处理请求）
 secret_key = _ensure_secret_key()
-app.add_middleware(SessionMiddleware, secret_key=secret_key, max_age=86400 * 7)
+_dev_mode = os.getenv("DEV_MODE", "").strip() in ("1", "true", "yes")
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=secret_key,
+    max_age=86400,                       # 1天（原7天）
+    https_only=not _dev_mode,            # 生产环境强制 HTTPS
+    same_site="strict",                  # 严格同站策略
+)
 
 
 # ── 路由 ──────────────────────────────────────────────────────────────────────
