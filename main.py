@@ -391,6 +391,42 @@ if os.path.isdir("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
+import secrets as _secrets
+
+_CSRF_SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+_CSRF_EXEMPT_PATHS = {"/health", "/events", "/login"}
+
+
+@app.middleware("http")
+async def csrf_middleware(request: Request, call_next):
+    """CSRF 防护：POST/PUT/DELETE 请求必须携带有效 token"""
+    # 注入 csrf_token 到模板全局变量（每个请求都刷新）
+    templates.env.globals["csrf_token"] = request.session.get("csrf_token", "")
+
+    if request.method in _CSRF_SAFE_METHODS:
+        return await call_next(request)
+    if request.url.path in _CSRF_EXEMPT_PATHS or _is_public(request.url.path):
+        return await call_next(request)
+
+    session_token = request.session.get("csrf_token", "")
+    if not session_token:
+        return await call_next(request)  # 无 session（未登录）跳过
+
+    # 从表单字段或请求头获取提交的 token
+    submitted = None
+    content_type = request.headers.get("content-type", "")
+    if "form" in content_type:
+        form = await request.form()
+        submitted = form.get("_csrf")
+    if not submitted:
+        submitted = request.headers.get("X-CSRF-Token")
+
+    if not submitted or submitted != session_token:
+        return HTMLResponse("403 Forbidden — CSRF token 无效，请刷新页面重试", status_code=403)
+
+    return await call_next(request)
+
+
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     """所有非公开路由要求登录"""
@@ -583,6 +619,7 @@ async def login_submit(
     _login_attempts.pop(client_ip, None)  # 登录成功，清除该 IP 的失败记录
     is_new_account = session_user.pop("_is_new", False)
     request.session["user"] = session_user
+    request.session["csrf_token"] = _secrets.token_hex(32)
 
     # 仅在首次添加该账号时执行初始邮件同步，避免重启重新登录时重复插入历史邮件
     if is_new_account:
