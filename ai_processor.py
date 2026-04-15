@@ -36,6 +36,55 @@ def _get_client():
 def _model():
     return os.getenv("LLM_MODEL", "qwen-plus")
 
+
+# ── AI 健康状态 ─────────────────────────────────────────────────────────────
+from datetime import datetime as _dt
+
+_ai_health = {
+    "status":        "healthy",   # healthy / degraded / unavailable
+    "last_ok":       None,        # ISO 时间戳
+    "last_fail":     None,
+    "fail_count":    0,
+    "error_message": None,
+}
+
+
+def get_ai_health() -> dict:
+    """返回当前 AI 健康状态的只读副本"""
+    return dict(_ai_health)
+
+
+def check_ai_health() -> tuple[str, str] | None:
+    """
+    轻量探针：发一个 max_tokens=1 的请求检测 LLM 可用性。
+    返回 (old_status, new_status) 如果状态变化了，否则返回 None。
+    """
+    old = _ai_health["status"]
+    try:
+        client = _get_client()
+        client.chat.completions.create(
+            model=_model(),
+            messages=[{"role": "user", "content": "hi"}],
+            max_tokens=1,
+            timeout=10,
+        )
+        _ai_health["last_ok"] = _dt.now().isoformat()
+        _ai_health["fail_count"] = 0
+        _ai_health["error_message"] = None
+        _ai_health["status"] = "healthy"
+    except Exception as e:
+        _ai_health["last_fail"] = _dt.now().isoformat()
+        _ai_health["fail_count"] += 1
+        _ai_health["error_message"] = str(e)[:200]
+        if _ai_health["fail_count"] >= 2:
+            _ai_health["status"] = "unavailable"
+        else:
+            _ai_health["status"] = "degraded"
+
+    new = _ai_health["status"]
+    return (old, new) if old != new else None
+
+
 def _parse_json(text):
     """从 LLM 响应中提取 JSON，兼容 markdown 代码块包裹"""
     text = text.strip()
