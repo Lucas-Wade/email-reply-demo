@@ -225,13 +225,24 @@ Respond ONLY with valid JSON in this exact format:
   "delivery_deadline": "within 60 days or specific date",
   "payment_terms": "T/T or L/C or not mentioned",
   "special_requirements": "any special notes",
-  "urgency": "high|medium|low"
+  "urgency": "high|medium|low",
+  "competitor_mentions": [
+    {{
+      "company": "competitor company name or null",
+      "price_usd": 2.30,
+      "unit": "kg",
+      "product": "the product being compared"
+    }}
+  ]
 }}
 
 Rules:
 - "language": ISO 639-1 code of the email's language (en/zh/es/ar/fr/de/ru/pt/etc.)
 - Use null for fields not mentioned in the email
 - Keep "description" as close to original wording as possible
+- "competitor_mentions": extract ONLY when buyer explicitly mentions another supplier's price
+  (e.g. "Company X offers $2.3/kg", "I got a quote for $5 from another vendor").
+  Leave as empty array [] if no competitor price is mentioned.
 
 Inquiry email:
 {body[:3000]}
@@ -249,7 +260,8 @@ Inquiry email:
         return {"language": "en", "products_requested": [],
                 "customer_name": None, "company": None, "country": None,
                 "delivery_deadline": None, "payment_terms": None,
-                "special_requirements": None, "urgency": "low"}
+                "special_requirements": None, "urgency": "low",
+                "competitor_mentions": []}
 
 
 # ── 调用 3：回复草稿生成 ──────────────────────────────────────────────────────
@@ -300,6 +312,30 @@ def generate_draft(parsed_inquiry: dict, matched_products: list) -> dict:
         "pt": "Escreva em português natural e direto, como um vendedor real, não como um modelo.",
     }.get(lang, f"Write in natural, direct {lang} — like a real salesperson, not a template.")
 
+    # 竞品价格感知：若买家提到竞品报价，生成有针对性的应对提示
+    competitor_hint = ""
+    competitors = parsed_inquiry.get("competitor_mentions") or []
+    if competitors:
+        lines = []
+        for c in competitors:
+            price = c.get("price_usd")
+            unit  = c.get("unit") or ""
+            comp  = c.get("company") or "another supplier"
+            prod  = c.get("product") or "the product"
+            if price:
+                lines.append(f'- Buyer mentioned {comp} quoted ${price}/{unit} for {prod}')
+            else:
+                lines.append(f'- Buyer mentioned getting a quote from {comp} for {prod}')
+        competitor_hint = (
+            "\nCOMPETITOR PRICING ALERT — handle this tactfully:\n"
+            + "\n".join(lines) + "\n"
+            "Strategy: Do NOT match their price blindly. In ONE sentence max, "
+            "acknowledge you've seen similar comparisons before, then pivot to your "
+            "strengths (quality certifications, lead time, after-sales support, "
+            "factory-direct reliability). Do not ignore this — buyers who mention "
+            "competitor prices are actively comparing and need a reason to choose you.\n"
+        )
+
     prompt = f"""You are a sales rep at {company_name}, {company_desc}. A customer just sent you an inquiry and you're writing back.
 
 {lang_instruction}
@@ -312,7 +348,7 @@ STRICT RULES — violations will make the email look fake:
 - Start directly — reference something specific from their inquiry (the product they asked about, their quantity, their deadline) in the first sentence
 - Write short paragraphs (2-3 sentences max each)
 - Sound like a real person who read their email, not a bot filling in a template
-
+{competitor_hint}
 What to cover naturally (weave in, don't list):
 - Acknowledge what they asked for specifically
 - Share the product quote and key specs
@@ -638,6 +674,46 @@ Website content:
         return {"products": products, "raw_count": len(products), "url": url, "error": ""}
     except Exception as e:
         return {"products": [], "error": f"AI 提取失败: {e}", "url": url}
+
+
+# ── AI 局部改写 ──────────────────────────────────────────────────────────────
+
+def rewrite_snippet(original_body: str, instruction: str, language: str = "en") -> str:
+    """
+    根据用户指令对草稿正文进行局部或全局改写。
+    返回改写后的完整正文字符串；失败时原样返回 original_body。
+    """
+    client = _get_client()
+    lang_hint = {
+        "zh": "保持中文", "en": "keep English", "es": "mantén español",
+        "ar": "حافظ على اللغة العربية", "fr": "garde le français",
+        "de": "Deutsch behalten", "ru": "оставь русский", "pt": "manter português",
+    }.get(language, f"keep the same language ({language})")
+
+    prompt = f"""You are editing a business email draft. Apply the following instruction to improve it.
+
+Instruction: {instruction}
+Language rule: {lang_hint}
+
+Rules:
+- Only change what the instruction asks for; keep everything else identical
+- Do NOT add explanations or meta-comments
+- Return ONLY the revised email body text, nothing else
+
+Original draft:
+{original_body}
+"""
+    try:
+        resp = client.chat.completions.create(
+            model=_model(),
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.4,
+            timeout=30,
+        )
+        return resp.choices[0].message.content.strip()
+    except Exception as e:
+        logger.warning(f"[rewrite_snippet] 失败: {e}")
+        return original_body
 
 
 # ── 邮件图片识别（Qwen-VL） ───────────────────────────────────────────────────

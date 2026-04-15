@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Draft Reply - Executive Lens</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(20px);
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #eceef1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #d8dade;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface": "#f8f9fd",
+                        "secondary-container": "#036cfb",
+                        "on-secondary-fixed": "#001946",
+                        "background": "#f8f9fd",
+                        "tertiary-container": "#4f3300",
+                        "primary-fixed": "#d2e4ff",
+                        "surface-bright": "#f8f9fd",
+                        "on-secondary-container": "#fefcff",
+                        "on-primary-fixed": "#001c37",
+                        "tertiary-fixed": "#ffddb1",
+                        "error": "#ba1a1a",
+                        "on-tertiary-fixed-variant": "#5f410c",
+                        "tertiary": "#331f00",
+                        "surface-dim": "#d8dade",
+                        "on-primary-container": "#87a4cc",
+                        "on-primary-fixed-variant": "#2a486b",
+                        "on-surface": "#191c1f",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary": "#0055c9",
+                        "outline": "#73777f",
+                        "on-tertiary": "#ffffff",
+                        "on-error": "#ffffff",
+                        "inverse-primary": "#abc9f2",
+                        "inverse-on-surface": "#eff1f4",
+                        "inverse-surface": "#2e3134",
+                        "surface-container-highest": "#e1e2e6",
+                        "primary-fixed-dim": "#abc9f2",
+                        "surface-tint": "#436084",
+                        "on-tertiary-container": "#c49b5f",
+                        "secondary-fixed": "#dae2ff",
+                        "on-background": "#191c1f",
+                        "primary-container": "#1a3a5c",
+                        "surface-container-high": "#e6e8ec",
+                        "on-secondary-fixed-variant": "#00419e",
+                        "primary": "#002444",
+                        "surface-container": "#eceef1",
+                        "outline-variant": "#c3c6cf",
+                        "on-secondary": "#ffffff",
+                        "surface-container-low": "#f2f4f7",
+                        "error-container": "#ffdad6",
+                        "on-surface-variant": "#43474e",
+                        "secondary-fixed-dim": "#b1c5ff",
+                        "on-tertiary-fixed": "#291800",
+                        "tertiary-fixed-dim": "#ecbf80",
+                        "on-primary": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "surface-variant": "#e1e2e6"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-surface font-body text-on-surface overflow-hidden">
+<div class="flex h-screen overflow-hidden">
+<aside class="hidden md:flex flex-col h-full py-4 px-3 sticky left-0 shadow-none bg-slate-100 dark:bg-slate-950 h-screen w-64 border-r-0 text-blue-900 dark:text-blue-100 font-inter text-sm font-medium z-40">
+<div class="flex items-center gap-3 px-3 mb-8">
+<div class="w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center overflow-hidden">
+<img alt="Business Logo" class="w-8 h-8" data-alt="minimalist architectural corporate logo with geometric shapes in deep navy and professional blue" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBKkFf8f_unugSTG57lcUv8e46Nhaomr5m10WWGF6K06UWt66eXiYjbIdFRpofK-rE_A7tZd3y3x0dvDkoyLcKVdzInoDPZFpwLroyvmTiTALu6jwgItIruud7NPBLWk8rQgMosskgsDHOq9HnQaEZ46_5wfGy7Eok7lxEBEEFHib4HfxbK0NK0vUk5bgnvN9QaotRyxokrKDarzt_IdgUZNYhzK5MExGh27XhvoY83bTd7NBoxSwUvXZUaMaBttpDgXlPwqefzXi0"/>
+</div>
+<div>
+<h1 class="text-lg font-black text-blue-900 dark:text-blue-50 leading-tight">Global Trade Co.</h1>
+<p class="text-[10px] uppercase tracking-wider text-on-surface-variant opacity-70">Enterprise Tier</p>
+</div>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2.5 bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 rounded-lg shadow-sm hover:translate-x-1 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="inbox">inbox</span>
+<span>Inbox</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-900 hover:translate-x-1 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="drafts">drafts</span>
+<span>Drafts</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-900 hover:translate-x-1 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="send">send</span>
+<span>Sent</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-900 hover:translate-x-1 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span>Customers</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-900 hover:translate-x-1 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span>Insights</span>
+</a>
+</nav>
+<div class="mt-auto space-y-1 border-t border-surface-container pt-4">
+<a class="flex items-center gap-3 px-3 py-2.5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-900 hover:translate-x-1 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+<span>Support</span>
+</a>
+<div class="px-3 py-4">
+<button class="w-full py-2.5 px-4 bg-primary text-on-primary rounded-xl font-semibold text-xs shadow-lg hover:bg-secondary transition-colors duration-200">
+                        Upgrade Plan
+                    </button>
+</div>
+</div>
+</aside>
+<main class="flex-1 flex flex-col min-w-0 bg-surface">
+<header class="flex justify-between items-center px-6 h-16 w-full sticky top-0 z-50 bg-slate-50 dark:bg-slate-900 font-manrope tracking-tight shadow-none">
+<div class="flex items-center gap-8">
+<div class="text-xl font-bold text-slate-900 dark:text-white">Executive Lens</div>
+<nav class="hidden lg:flex items-center gap-6">
+<a class="text-blue-700 dark:text-blue-400 font-semibold border-b-2 border-blue-600 py-5" href="#">Inquiries</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 py-5 transition-colors" href="#">Analytics</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 py-5 transition-colors" href="#">CRM</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative group hidden sm:block">
+<span class="absolute inset-y-0 left-0 pl-3 flex items-center text-outline">
+<span class="material-symbols-outlined text-xl" data-icon="search">search</span>
+</span>
+<input class="block w-64 pl-10 pr-3 py-2 border-none bg-surface-container rounded-full text-sm focus:ring-2 focus:ring-secondary transition-all" placeholder="Search inquiries..." type="text"/>
+</div>
+<button class="material-symbols-outlined p-2 text-on-surface-variant hover:bg-slate-100 rounded-full transition-colors" data-icon="notifications">notifications</button>
+<button class="material-symbols-outlined p-2 text-on-surface-variant hover:bg-slate-100 rounded-full transition-colors" data-icon="settings">settings</button>
+<div class="h-8 w-8 rounded-full bg-surface-container-high border-2 border-surface-container-lowest overflow-hidden">
+<img alt="User profile" class="w-full h-full object-cover" data-alt="professional portrait of a business executive in soft studio lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCF7USr40k2VdtCBC0IfY-9AjqXC7yqIytgiJtbLm3J_rGWNgw1RX1CnOxBhKQHCWto3eyTuAJj6OQsXRxKyJonRLakAIYS5m-jIrSu2ovVdSaCnYwz6kN6SGlFPkO4Q8eW-FGfJWgBlhQj3nmwRuI3zBNZ3DTJZWPdByIKD7oetPw18ylaJ-i_PSY9ZbT3eV8st0ha8S8dnOA9xGWHdineQrDaPgH5oSlTwyiiX-3g9moqo9UN6LkZr2Q1Lh2ZonYrEBX9BODo5ps"/>
+</div>
+</div>
+</header>
+<div class="flex-1 flex flex-col overflow-hidden p-6 gap-6">
+<div class="bg-surface-container-lowest rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+<div class="flex items-center gap-4">
+<div class="h-12 w-12 rounded-xl bg-secondary-fixed flex items-center justify-center text-on-secondary-fixed-variant">
+<span class="material-symbols-outlined text-2xl" data-icon="person">person</span>
+</div>
+<div>
+<h2 class="font-headline font-bold text-lg leading-tight">Drafting Reply for: Sarah Jenkins</h2>
+<p class="text-sm text-on-surface-variant">s.jenkins@vanguard-logistics.com • <span class="font-semibold text-primary">Vanguard Logistics Inc.</span></p>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<span class="px-3 py-1 bg-tertiary-container text-on-tertiary-container text-xs font-bold rounded-md">HIGH PRIORITY</span>
+<span class="px-3 py-1 bg-surface-container-high text-on-surface-variant text-xs font-bold rounded-md">INQUIRY #8824-A</span>
+</div>
+</div>
+<div class="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-0">
+<div class="flex flex-col min-h-0 bg-surface-container-low rounded-xl overflow-hidden">
+<div class="px-6 py-4 border-b border-outline-variant/15 flex items-center justify-between">
+<h3 class="font-headline font-bold text-sm tracking-tight uppercase text-on-surface-variant">Original Inquiry</h3>
+<span class="text-xs text-outline">Received: 2 hours ago</span>
+</div>
+<div class="flex-1 overflow-y-auto p-8 bg-surface-container-lowest/50">
+<div class="prose prose-sm max-w-none text-on-surface leading-relaxed">
+<p class="mb-4">Dear Executive Lens Team,</p>
+<p class="mb-4">I am writing to inquire about the feasibility of integrating your platform's inquiry management module directly into our existing SAP instance. We are currently processing approximately 4,500 logistics inquiries per week and the manual hand-off is becoming a significant bottleneck.</p>
+<p class="mb-4">Specifically, we need to know:</p>
+<ul class="list-disc pl-5 mb-4 space-y-2">
+<li>Does your API support bi-directional data flow for status updates?</li>
+<li>What are the typical latency rates for high-volume message processing?</li>
+<li>Do you offer a dedicated success manager for the enterprise integration phase?</li>
+</ul>
+<p class="mb-4">We are looking to make a decision by the end of Q3. If we can see a technical demonstration by next Friday, that would be ideal.</p>
+<p>Best regards,<br/>Sarah Jenkins<br/>Director of Logistics Operations</p>
+</div>
+</div>
+</div>
+<div class="flex flex-col min-h-0 bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant/10 overflow-hidden">
+<div class="px-6 py-4 border-b border-outline-variant/15 flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary" data-icon="auto_awesome">auto_awesome</span>
+<h3 class="font-headline font-bold text-sm tracking-tight uppercase text-primary">AI Reply Draft</h3>
+</div>
+<div class="flex items-center gap-1">
+<button class="p-1.5 hover:bg-surface-container rounded transition-colors" title="Bold"><span class="material-symbols-outlined text-xl" data-icon="format_bold">format_bold</span></button>
+<button class="p-1.5 hover:bg-surface-container rounded transition-colors" title="Italic"><span class="material-symbols-outlined text-xl" data-icon="format_italic">format_italic</span></button>
+<button class="p-1.5 hover:bg-surface-container rounded transition-colors" title="List"><span class="material-symbols-outlined text-xl" data-icon="format_list_bulleted">format_list_bulleted</span></button>
+<div class="w-px h-6 bg-outline-variant mx-1"></div>
+<button class="p-1.5 hover:bg-surface-container rounded transition-colors" title="Link"><span class="material-symbols-outlined text-xl" data-icon="link">link</span></button>
+</div>
+</div>
+<div class="flex-1 flex flex-col p-6">
+<textarea class="flex-1 w-full p-4 bg-surface-container-low rounded-xl border-none focus:ring-0 text-on-surface font-body leading-relaxed resize-none text-base" placeholder="Edit your reply here...">Dear Sarah,
+
+Thank you for reaching out to the Executive Lens team. We are excited about the possibility of partnering with Vanguard Logistics Inc. to streamline your inquiry management process.
+
+Regarding your technical questions:
+
+1. API Capabilities: Yes, our Enterprise API supports full bi-directional data flow. Status updates in Executive Lens will reflect in your SAP instance in near real-time via webhooks.
+
+2. Performance: Our infrastructure is built to handle high-volume enterprise traffic. For 4,500 inquiries/week, you can expect sub-200ms latency for all standard API operations.
+
+3. Integration Support: Our Enterprise Tier includes a dedicated Integration Architect and a Success Manager who will oversee the entire SAP connection process.
+
+I would be happy to host a technical demonstration for your team next Friday as requested. Would 2:00 PM EST work for you?
+
+Best regards,
+
+The Executive Lens Team</textarea>
+<div class="mt-6 flex items-center justify-between">
+<div class="flex items-center gap-4 text-xs text-on-surface-variant">
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm" data-icon="history">history</span> Draft saved 2m ago</span>
+<span class="flex items-center gap-1 font-semibold text-secondary"><span class="material-symbols-outlined text-sm" data-icon="check_circle">check_circle</span> Tone: Professional</span>
+</div>
+<button class="flex items-center gap-2 px-4 py-2 border border-secondary text-secondary hover:bg-secondary-fixed rounded-lg text-sm font-semibold transition-all">
+<span class="material-symbols-outlined text-lg" data-icon="refresh">refresh</span>
+                                    Regenerate AI Response
+                                </button>
+</div>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between bg-primary-container p-4 rounded-xl shadow-lg mt-auto">
+<div class="flex items-center gap-4">
+<button class="flex items-center gap-2 px-6 py-2.5 bg-surface-container-lowest text-primary hover:bg-surface-bright rounded-lg font-bold transition-all">
+<span class="material-symbols-outlined text-xl" data-icon="save">save</span>
+                            Save Draft
+                        </button>
+<button class="flex items-center gap-2 px-6 py-2.5 text-on-primary-container hover:bg-white/10 rounded-lg font-semibold transition-all">
+                            Discard
+                        </button>
+</div>
+<button class="flex items-center gap-2 px-8 py-3 bg-gradient-to-br from-secondary-container to-secondary text-white rounded-lg font-bold shadow-xl hover:translate-y-[-2px] transition-all active:scale-95">
+<span class="material-symbols-outlined" data-icon="send" data-weight="fill" style="font-variation-settings: 'FILL' 1;">send</span>
+                        Send Now
+                    </button>
+</div>
+</div>
+</main>
+</div>
+</body></html>

@@ -10,6 +10,9 @@ import re
 import html as _html_mod
 import threading
 import time
+import logging
+
+logger = logging.getLogger("inquiry")
 
 
 def _decode_str(value):
@@ -264,17 +267,21 @@ def start_idle_watcher(on_new_mail, creds: dict = None) -> threading.Event:
 
         while not stop_event.is_set():
             try:
+                logger.info("[IDLE] 正在连接 IMAP 服务器...")
                 with MailBox(host, port).login(user, password) as mailbox:
+                    logger.info("[IDLE] 连接成功，开始监听新邮件")
                     while not stop_event.is_set():
                         # idle.wait() = start IDLE → 等待服务器推送 → stop IDLE
                         # timeout=55s：RFC 2177 建议 ≤29 分钟重新发 IDLE，55s 是保守安全值
                         # 服务器有任何事件（新邮件/删除/标志变更）时立即返回非空列表
                         responses = mailbox.idle.wait(timeout=55)
                         if responses and not stop_event.is_set():
+                            logger.info(f"[IDLE] 收到服务器推送，触发邮件检查")
                             on_new_mail()
-            except Exception:
+            except Exception as e:
                 if not stop_event.is_set():
-                    time.sleep(30)   # 连接断开后等 30s 重连，避免高频重试
+                    logger.warning(f"[IDLE] 连接中断: {e}, 5秒后重连")
+                    time.sleep(5)   # 连接断开后等 5s 重连（原 30s 太久导致邮件延迟）
 
     t = threading.Thread(target=_watch, daemon=True, name="imap-idle")
     t.start()

@@ -177,6 +177,7 @@
           <th>{{ sort_link('sender', '发件人') }}</th>
           <th>主题</th>
           <th>{{ sort_link('category', '分类') }}</th>
+          <th>意向</th>
           <th>语言</th>
           <th>{{ sort_link('status', '状态') }}</th>
           <th>{{ sort_link('received_at', '收件时间') }}</th>
@@ -212,6 +213,15 @@
             {% else %}
               <span class="badge badge-other">其他</span>
             {% endif %}
+          </td>
+          <td class="text-nowrap">
+            {% if e.intent_score is not none and e.category == 'valid_inquiry' %}
+            <span title="买家意向 {{ e.intent_score }}/5">
+              {% for i in range(1, 6) %}
+              <i class="bi bi-star{% if i <= e.intent_score %}-fill text-warning{% endif %}" style="font-size:.7rem"></i>
+              {% endfor %}
+            </span>
+            {% else %}<span class="text-muted small">—</span>{% endif %}
           </td>
           <td>
             <span class="badge bg-light text-dark border small">{{ e.language | upper if e.language and e.language != 'unknown' else '—' }}</span>
@@ -272,7 +282,7 @@
         </tr>
         <!-- 展开预览行 -->
         <tr class="preview-row d-none" id="preview-{{ e.id }}">
-          <td colspan="10" class="p-0 pb-2"
+          <td colspan="11" class="p-0 pb-2"
               style="border-left:3px solid #0d6efd;background:#f0f5ff">
 
             <!-- 分类评分明细 -->
@@ -330,11 +340,41 @@
             <!-- 邮件正文预览 -->
             <div class="email-preview mt-1 mx-3 mb-2" id="preview-text-{{ e.id }}"></div>
             <template id="preview-data-{{ e.id }}">{{ e.body_text or '' }}</template>
+
+            <!-- 内联草稿快审区（仅待审核草稿显示） -->
+            {% if e.draft_id and e.draft_status in ['pending', 'drafted'] %}
+            <div class="border-top mx-3 mt-1 mb-2 pt-2" id="inline-draft-wrap-{{ e.draft_id }}">
+              <div class="d-flex align-items-center gap-2 mb-1">
+                <i class="bi bi-pencil-square text-primary" style="font-size:.8rem"></i>
+                <span class="small fw-semibold" style="color:var(--on-surface-var)">AI 草稿</span>
+                <span class="badge bg-warning text-dark" style="font-size:.68rem">待审核</span>
+                <span class="text-muted small ms-1 inline-draft-subject-{{ e.draft_id }}"></span>
+              </div>
+              <div class="small bg-white p-2 rounded border mb-2 inline-draft-body-{{ e.draft_id }}"
+                   style="max-height:110px;overflow-y:auto;white-space:pre-wrap;font-family:inherit;color:#333">
+                <span class="text-muted fst-italic">加载中…</span>
+              </div>
+              <div class="d-flex gap-2 align-items-center">
+                <button class="btn btn-sm btn-success px-3 btn-quick-approve"
+                        data-draft-id="{{ e.draft_id }}" data-email-id="{{ e.id }}"
+                        data-sender="{{ e.sender | replace('"', '&quot;') }}">
+                  <i class="bi bi-send-fill me-1"></i>批准发送
+                </button>
+                <button class="btn btn-sm btn-outline-danger btn-quick-reject"
+                        data-draft-id="{{ e.draft_id }}" data-email-id="{{ e.id }}">
+                  <i class="bi bi-x-circle me-1"></i>拒绝
+                </button>
+                <a href="/draft/{{ e.draft_id }}" class="btn btn-sm btn-link btn-sm text-muted ms-auto" style="font-size:.8rem">
+                  编辑草稿 <i class="bi bi-arrow-right"></i>
+                </a>
+              </div>
+            </div>
+            {% endif %}
           </td>
         </tr>
         {% else %}
         <tr>
-          <td colspan="10" class="text-center text-muted py-5">
+          <td colspan="11" class="text-center text-muted py-5">
             <i class="bi bi-inbox fs-3 d-block mb-2 opacity-30"></i>
             <div class="mb-2">暂无邮件记录</div>
             <div class="d-flex gap-2 justify-content-center">
@@ -518,6 +558,98 @@ document.querySelectorAll('.email-row').forEach(row => {
     }
   });
 })();
+
+// ── 内联快速审核 ────────────────────────────────────────────────────────────
+// 展开行时懒加载草稿内容，批准/拒绝按钮直接操作不跳转页面
+const _draftLoaded = new Set();
+
+// 展开行时触发草稿加载（挂在行展开事件后）
+document.querySelectorAll('.email-row').forEach(row => {
+  row.addEventListener('click', async (e) => {
+    if (e.target.closest('a, button, form')) return;
+    const id = row.dataset.id;
+    const previewRow = document.getElementById('preview-' + id);
+    const isNowOpen = !previewRow.classList.contains('d-none');
+    if (!isNowOpen) return; // 收起时不加载
+    // 找到该行内所有草稿包裹区
+    previewRow.querySelectorAll('[id^="inline-draft-wrap-"]').forEach(async wrap => {
+      const draftId = wrap.id.replace('inline-draft-wrap-', '');
+      if (_draftLoaded.has(draftId)) return;
+      _draftLoaded.add(draftId);
+      try {
+        const res = await fetch(`/draft/${draftId}/preview`);
+        const d = await res.json();
+        const bodyEl = wrap.querySelector(`.inline-draft-body-${draftId}`);
+        const subjEl = wrap.querySelector(`.inline-draft-subject-${draftId}`);
+        if (bodyEl) bodyEl.textContent = d.body || '（草稿为空）';
+        if (subjEl) subjEl.textContent = d.subject || '';
+      } catch (_) {
+        const bodyEl = wrap.querySelector(`[class*="inline-draft-body-${draftId}"]`);
+        if (bodyEl) bodyEl.textContent = '加载失败';
+      }
+    });
+  });
+});
+
+// 快速批准
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.btn-quick-approve');
+  if (!btn) return;
+  const draftId = btn.dataset.draftId;
+  const sender  = btn.dataset.sender;
+  if (!confirm(`确认发送这封回复给：\n${sender}`)) return;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>发送中…';
+  try {
+    const res = await fetch(`/draft/${draftId}/quick-approve`, { method: 'POST' });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || '请求失败');
+    const wrap = document.getElementById(`inline-draft-wrap-${draftId}`);
+    if (wrap) wrap.innerHTML = '<div class="text-success small py-1"><i class="bi bi-check-circle-fill me-1"></i>已加入发送队列，稍后刷新查看结果</div>';
+    // 更新列表行状态徽章
+    const emailRow = document.querySelector(`.email-row[data-id="${btn.dataset.emailId}"]`);
+    if (emailRow) {
+      const statusCell = emailRow.querySelector('.status-cell');
+      if (statusCell) {
+        statusCell.innerHTML = '<span class="s-sent"><i class="bi bi-check2-circle me-1"></i>已发送</span>';
+        statusCell.dataset.status = 'sent';
+      }
+      // 隐藏草稿按钮
+      emailRow.querySelector('a[href^="/draft/"]')?.remove();
+    }
+    showToast('草稿已批准，正在发送…', 'success');
+  } catch (err) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-send-fill me-1"></i>批准发送';
+    showToast('发送失败：' + err.message, 'danger');
+  }
+});
+
+// 快速拒绝
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.btn-quick-reject');
+  if (!btn) return;
+  if (!confirm('确认拒绝并忽略这封询盘？')) return;
+  btn.disabled = true;
+  try {
+    await fetch(`/draft/${btn.dataset.draftId}/quick-reject`, { method: 'POST' });
+    const wrap = document.getElementById(`inline-draft-wrap-${btn.dataset.draftId}`);
+    if (wrap) wrap.innerHTML = '<div class="text-muted small py-1"><i class="bi bi-x-circle me-1"></i>已拒绝</div>';
+    const emailRow = document.querySelector(`.email-row[data-id="${btn.dataset.emailId}"]`);
+    if (emailRow) {
+      const statusCell = emailRow.querySelector('.status-cell');
+      if (statusCell) {
+        statusCell.innerHTML = '<span class="s-rejected"><i class="bi bi-x-circle me-1"></i>已拒绝</span>';
+        statusCell.dataset.status = 'rejected';
+      }
+      emailRow.querySelector('a[href^="/draft/"]')?.remove();
+    }
+    showToast('已拒绝并忽略', 'secondary');
+  } catch (_) {
+    btn.disabled = false;
+    showToast('操作失败，请重试', 'danger');
+  }
+});
 </script>
 
 <!-- 成单金额 Modal -->

@@ -60,6 +60,48 @@
         <div class="original-mail">{{ draft.body_text }}</div>
       </div>
     </div>
+
+    <!-- 往来时间线（有多封往来时显示） -->
+    {% if thread and thread | length > 1 %}
+    <div class="card mt-3">
+      <div class="card-header bg-white fw-semibold py-2" style="font-size:.85rem">
+        <i class="bi bi-chat-left-text me-2 text-secondary"></i>往来记录
+        <span class="badge bg-secondary ms-1 rounded-pill" style="font-size:.68rem">{{ thread | length }}</span>
+      </div>
+      <div class="card-body p-0">
+        {% for item in thread %}
+        <div class="px-3 py-2 {% if not loop.last %}border-bottom{% endif %}
+                    {% if item.id == draft.email_id %}bg-primary bg-opacity-5{% endif %}"
+             style="font-size:.82rem">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <div class="d-flex align-items-center gap-2">
+              {% if item.draft_status == 'sent' %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size:.65rem">
+                  <i class="bi bi-send-fill me-1"></i>我方回复
+                </span>
+              {% else %}
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size:.65rem">
+                  <i class="bi bi-envelope-fill me-1"></i>客户来信
+                </span>
+              {% endif %}
+              {% if item.id == draft.email_id %}
+                <span class="badge bg-warning text-dark" style="font-size:.62rem">当前</span>
+              {% endif %}
+            </div>
+            <span class="text-muted" style="font-size:.75rem">{{ (item.received_at or '')[:16] | replace('T',' ') }}</span>
+          </div>
+          <div class="text-truncate fw-semibold" style="max-width:100%">{{ item.subject or '（无主题）' }}</div>
+          <div class="text-muted text-truncate" style="max-height:2.4em;overflow:hidden">{{ (item.body_text or '')[:120] }}</div>
+          {% if item.draft_id and item.id != draft.email_id %}
+          <a href="/draft/{{ item.draft_id }}" class="btn btn-xs mt-1 btn-outline-secondary" style="font-size:.72rem;padding:1px 7px">
+            查看草稿
+          </a>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
   </div>
 
   <!-- 右栏：草稿编辑 + 核验卡 + 操作 -->
@@ -162,6 +204,46 @@
           </div>
 
         </div>
+
+        <!-- 竞品价格警报（横跨全宽，仅在买家提及竞品报价时显示） -->
+        {% set competitors = inquiry.competitor_mentions if inquiry.competitor_mentions is defined else [] %}
+        {% if competitors %}
+        <div class="border-top p-3" style="background:rgba(255,193,7,.08)">
+          <div class="d-flex align-items-start gap-2">
+            <i class="bi bi-exclamation-triangle-fill text-warning mt-1 flex-shrink-0"></i>
+            <div style="font-size:.83rem">
+              <div class="fw-semibold mb-1" style="color:#856404">竞品价格感知</div>
+              {% for c in competitors %}
+              {% set my_p = products[0].price_usd if products and products[0].price_usd else 0 %}
+              {% set gap_pct = ((my_p - c.price_usd) / c.price_usd * 100) | round(1) if c.price_usd and my_p else none %}
+              <div class="mb-1">
+                买家提到
+                <strong>{{ c.company or '竞争对手' }}</strong>
+                报价
+                <strong>
+                  {% if c.price_usd %}${{ c.price_usd }}/{{ c.unit or '' }}{% else %}未披露金额{% endif %}
+                </strong>
+                {% if c.product %}（{{ c.product }}）{% endif %}
+                {% if gap_pct is not none %}
+                  —— 你的报价 ${{ my_p }}/{{ products[0].unit or '' }}，
+                  {% if gap_pct > 0 %}
+                    <span class="text-danger fw-semibold">高出 {{ gap_pct }}%</span>
+                  {% elif gap_pct < 0 %}
+                    <span class="text-success fw-semibold">低于 {{ (gap_pct * -1) }}%</span>
+                  {% else %}
+                    <span class="text-muted">价格相当</span>
+                  {% endif %}
+                {% endif %}
+              </div>
+              {% endfor %}
+              <div class="text-muted small mt-1">
+                <i class="bi bi-stars me-1"></i>AI 草稿已感知竞品，会在回复中突出你方优势而非硬降价
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
       </div>
     </div>
 
@@ -178,6 +260,9 @@
             </button>
           </form>
           {% endif %}
+          <a href="/draft/{{ draft.id }}/quotation.pdf" class="btn btn-sm btn-outline-success" title="下载报价单 PDF">
+            <i class="bi bi-file-earmark-pdf me-1"></i>报价单 PDF
+          </a>
           <button class="btn btn-sm btn-outline-secondary btn-copy" data-target="#draft-body">
             <i class="bi bi-clipboard me-1"></i>复制
           </button>
@@ -209,6 +294,14 @@
             </div>
           </div>
           {% if draft.status not in ['sent', 'rejected', 'sending'] %}
+          <!-- AI 改写指令框 -->
+          <div class="d-flex gap-2 mb-2" id="ai-rewrite-bar">
+            <input type="text" id="rewrite-instruction" class="form-control form-control-sm"
+                   placeholder="告诉 AI 如何修改，例如：强调交期快、语气更友好、缩短到3段…">
+            <button type="button" class="btn btn-sm btn-outline-primary text-nowrap px-3" id="btn-ai-rewrite">
+              <i class="bi bi-stars me-1"></i>AI 改写
+            </button>
+          </div>
           <div class="d-flex gap-2 mb-1">
             <button type="submit" class="btn btn-sm btn-outline-secondary px-3">
               <i class="bi bi-save me-1"></i>保存修改
@@ -352,5 +445,60 @@ document.querySelectorAll('.btn-copy').forEach(btn => {
     });
   });
 });
+
+// ── AI 草稿改写 ──────────────────────────────────────────────────────────────
+const btnRewrite = document.getElementById('btn-ai-rewrite');
+const rewriteInput = document.getElementById('rewrite-instruction');
+
+async function doRewrite() {
+  const instruction = rewriteInput?.value?.trim();
+  if (!instruction) { rewriteInput?.focus(); return; }
+  if (!bodyArea) return;
+
+  const origLabel = btnRewrite.innerHTML;
+  btnRewrite.disabled = true;
+  btnRewrite.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>改写中…';
+
+  try {
+    const form = new FormData();
+    form.append('instruction', instruction);
+    const res = await fetch(window.location.pathname + '/rewrite', { method: 'POST', body: form });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || '请求失败');
+
+    // 保存原文以便撤销
+    const prev = bodyArea.value;
+    bodyArea.value = d.body;
+    _hasUnsaved = true;
+    updateWordCount();
+    if (hint) { hint.textContent = '● AI已改写，有未保存的修改'; hint.style.color = '#dc3545'; }
+    bodyArea.style.borderColor = '#ffc107';
+    bodyArea.style.boxShadow = '0 0 0 .2rem rgba(255,193,7,.2)';
+    rewriteInput.value = '';
+
+    // 撤销按钮（一次性）
+    const undoBtn = document.createElement('button');
+    undoBtn.type = 'button';
+    undoBtn.className = 'btn btn-sm btn-link text-muted px-1';
+    undoBtn.innerHTML = '<i class="bi bi-arrow-counterclockwise me-1"></i>撤销';
+    undoBtn.onclick = () => {
+      bodyArea.value = prev;
+      updateWordCount();
+      undoBtn.remove();
+    };
+    btnRewrite.parentNode.insertBefore(undoBtn, btnRewrite.nextSibling);
+    // 上一个撤销按钮如果存在就移除
+    btnRewrite.parentNode.querySelectorAll('button.btn-link').forEach((b, i) => { if (i > 0) b.remove(); });
+
+  } catch (err) {
+    showToast('AI 改写失败：' + err.message, 'danger');
+  } finally {
+    btnRewrite.disabled = false;
+    btnRewrite.innerHTML = origLabel;
+  }
+}
+
+btnRewrite?.addEventListener('click', doRewrite);
+rewriteInput?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doRewrite(); } });
 </script>
 {% endblock %}

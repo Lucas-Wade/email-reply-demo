@@ -73,8 +73,9 @@ from email_client import fetch_unread_emails, fetch_recent_emails, send_email, m
 from ai_processor import (classify_email, parse_inquiry, generate_draft,
                           background_check, generate_followup_draft, score_buyer_intent,
                           extract_products_from_url, describe_email_images,
-                          check_ai_health, get_ai_health)
+                          check_ai_health, get_ai_health, rewrite_snippet)
 from product_matcher import load_products, reload_products, match_products, get_products
+from quotation_pdf import generate_quotation_pdf
 
 
 # ── Auth 辅助 ─────────────────────────────────────────────────────────────────
@@ -141,16 +142,24 @@ def process_new_emails():
         _poll_lock.release()
 
 
+def _ai_health_probe_bg():
+    """后台线程执行 AI 健康探针，不阻塞邮件轮询"""
+    try:
+        status_change = check_ai_health()
+        if status_change:
+            old, new = status_change
+            logger.info(f"[AI 状态] {old} → {new}")
+            health = get_ai_health()
+            _push_event({"type": "ai_status_changed", "old": old, "new": new,
+                          "error": health.get("error_message")})
+    except Exception as e:
+        logger.warning(f"[AI 探针] 异常: {e}")
+
+
 def _process_new_emails_inner():
     logger.info("检查新邮件...")
-    # AI 健康探针：检测 LLM 可用性，状态变化时通过 SSE 通知前端
-    status_change = check_ai_health()
-    if status_change:
-        old, new = status_change
-        logger.info(f"[AI 状态] {old} → {new}")
-        health = get_ai_health()
-        _push_event({"type": "ai_status_changed", "old": old, "new": new,
-                      "error": health.get("error_message")})
+    # AI 健康探针：在后台线程执行，不阻塞邮件拉取
+    _threading.Thread(target=_ai_health_probe_bg, daemon=True, name="ai-probe").start()
     accounts = db.list_email_accounts(active_only=True)
     # 若数据库无账号，回退到 .env 单账号模式
     if not accounts:
@@ -798,9 +807,14 @@ async def draft_view(request: Request, draft_id: int):
     draft = db.get_draft(draft_id)
     if not draft:
         return HTMLResponse("草稿不存在", status_code=404)
+    # 往来时间线：从根节点展开整条线程
+    email_id = draft["email_id"]
+    root_id = draft.get("thread_email_id") or email_id
+    thread = db.get_email_thread(root_id)
     return templates.TemplateResponse(
         request=request, name="draft.html",
-        context={"draft": draft, "company_bad_fields": _company_has_placeholder()},
+        context={"draft": draft, "thread": thread,
+                 "company_bad_fields": _company_has_placeholder()},
     )
 
 
@@ -839,6 +853,48 @@ async def draft_regenerate(draft_id: int, background_tasks: BackgroundTasks):
     """后台重新生成草稿，完成后跳回草稿页"""
     background_tasks.add_task(_regenerate_draft, draft_id)
     return RedirectResponse(f"/draft/{draft_id}?regenerated=1", status_code=303)
+
+
+@app.get("/draft/{draft_id}/quotation.pdf")
+async def draft_quotation_pdf(draft_id: int):
+    from fastapi.responses import Response
+    draft = db.get_draft(draft_id)
+    if not draft:
+        return HTMLResponse("草稿不存在", status_code=404)
+    parsed = {}
+    if draft.get("parsed_inquiry"):
+        try:
+            parsed = json.loads(draft["parsed_inquiry"])
+        except Exception:
+            pass
+    products = []
+    if draft.get("quoted_products"):
+        try:
+            products = json.loads(draft["quoted_products"])
+        except Exception:
+            pass
+    pdf_bytes = generate_quotation_pdf(draft, parsed, products)
+    filename = f"Quotation-{draft.get('email_id', draft_id)}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.post("/draft/{draft_id}/rewrite")
+async def draft_rewrite(draft_id: int, instruction: str = Form(...)):
+    """AI 局部改写：根据用户指令修改草稿正文，返回新正文（JSON）"""
+    draft = db.get_draft(draft_id)
+    if not draft:
+        return JSONResponse({"error": "草稿不存在"}, status_code=404)
+    if draft["status"] in ("sent", "sending"):
+        return JSONResponse({"error": "已发送，无法修改"}, status_code=400)
+    new_body = rewrite_snippet(
+        draft["body"], instruction,
+        language=draft.get("language", "en")
+    )
+    return JSONResponse({"body": new_body})
 
 
 @app.post("/draft/{draft_id}/approve")
@@ -897,6 +953,47 @@ async def draft_reject(draft_id: int):
         db.update_draft_status(draft_id, "rejected")
         db.update_email_status(draft["email_id"], "ignored")
     return RedirectResponse("/", status_code=303)
+
+
+# ── 内联快速审核（列表页展开行使用，返回 JSON 不跳转） ────────────────────────
+
+@app.get("/draft/{draft_id}/preview")
+async def draft_preview_json(draft_id: int):
+    draft = db.get_draft(draft_id)
+    if not draft:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return JSONResponse({
+        "subject": draft["subject"],
+        "body":    draft["body"],
+        "sender":  draft["sender"],
+        "status":  draft["status"],
+    })
+
+
+@app.post("/draft/{draft_id}/quick-approve")
+async def draft_quick_approve(draft_id: int, background_tasks: BackgroundTasks):
+    draft = db.get_draft(draft_id)
+    if not draft:
+        return JSONResponse({"error": "草稿不存在"}, status_code=404)
+    if draft["status"] in ("sent", "sending"):
+        return JSONResponse({"error": "已发送或发送中"}, status_code=400)
+    m = _re.search(r"<(.+?)>", draft["sender"])
+    to_addr = m.group(1) if m else draft["sender"].strip()
+    db.update_draft_status(draft_id, "sending")
+    background_tasks.add_task(
+        _send_and_update, draft_id, to_addr,
+        draft["subject"], draft["body"], draft["email_id"]
+    )
+    return JSONResponse({"ok": True})
+
+
+@app.post("/draft/{draft_id}/quick-reject")
+async def draft_quick_reject(draft_id: int):
+    draft = db.get_draft(draft_id)
+    if draft:
+        db.update_draft_status(draft_id, "rejected")
+        db.update_email_status(draft["email_id"], "ignored")
+    return JSONResponse({"ok": True})
 
 
 @app.post("/email/{email_id}/read")
