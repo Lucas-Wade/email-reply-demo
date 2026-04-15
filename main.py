@@ -72,7 +72,8 @@ from auth import get_session_user, verify_imap, detect_provider
 from email_client import fetch_unread_emails, fetch_recent_emails, send_email, mark_emails_seen, start_idle_watcher
 from ai_processor import (classify_email, parse_inquiry, generate_draft,
                           background_check, generate_followup_draft, score_buyer_intent,
-                          extract_products_from_url, describe_email_images)
+                          extract_products_from_url, describe_email_images,
+                          check_ai_health, get_ai_health)
 from product_matcher import load_products, reload_products, match_products, get_products
 
 
@@ -142,6 +143,14 @@ def process_new_emails():
 
 def _process_new_emails_inner():
     logger.info("检查新邮件...")
+    # AI 健康探针：检测 LLM 可用性，状态变化时通过 SSE 通知前端
+    status_change = check_ai_health()
+    if status_change:
+        old, new = status_change
+        logger.info(f"[AI 状态] {old} → {new}")
+        health = get_ai_health()
+        _push_event({"type": "ai_status_changed", "old": old, "new": new,
+                      "error": health.get("error_message")})
     accounts = db.list_email_accounts(active_only=True)
     # 若数据库无账号，回退到 .env 单账号模式
     if not accounts:
@@ -213,6 +222,17 @@ def _handle_one_email(raw: dict):
 
     if rule == "trust":
         classification = {"category": "valid_inquiry", "layer": 0, "score": None, "criteria": {}}
+    elif get_ai_health()["status"] == "unavailable":
+        # AI 不可用时跳过 LLM 分类，保存为 pending_ai 等待恢复后补跑
+        logger.info(f"[AI 离线] 跳过分类 uid={raw['uid']}，标记为 pending_ai")
+        db.save_email(
+            uid=raw["uid"], subject=raw["subject"], sender=raw["sender"],
+            received_at=raw["received_at"], body_text=raw["body_text"],
+            language="unknown", category="pending_ai",
+            classify_layer=0, classify_score=None, classify_criteria=None,
+            thread_email_id=thread_email_id, account_email=account_email,
+        )
+        return
     else:
         classification = classify_email(raw["subject"], raw["sender"], raw["body_text"])
 
@@ -423,9 +443,13 @@ async def api_counts(request: Request):
     """轻量角标接口：返回待审核草稿数 + 逾期跟进数，供导航栏角标使用"""
     user = get_session_user(request)
     account_email = user["email"] if user else None
+    health = get_ai_health()
     return JSONResponse({
         "pending_drafts": db.get_pending_draft_count(account_email=account_email),
         "overdue_followups": len(db.get_overdue_followups()),
+        "ai_status": health["status"],
+        "ai_error": health["error_message"],
+        "ai_last_ok": health["last_ok"],
     })
 
 
@@ -439,6 +463,7 @@ async def health():
     return JSONResponse({
         "status":  "degraded" if has_error else "ok",
         "time":    _now(),
+        "ai": get_ai_health(),
         "today": {
             "received":  today.get("total", 0),
             "inquiries": today.get("inquiries", 0),
@@ -470,7 +495,9 @@ async def sse_events(request: Request):
                     break
                 try:
                     payload = await asyncio.wait_for(q.get(), timeout=25)
-                    yield ServerSentEvent(data=payload, event="new_draft")
+                    msg = json.loads(payload)
+                    event_type = msg.get("type", "new_draft")
+                    yield ServerSentEvent(data=payload, event=event_type)
                 except asyncio.TimeoutError:
                     yield ServerSentEvent(comment="keepalive")  # 心跳，防止代理断连
         finally:
