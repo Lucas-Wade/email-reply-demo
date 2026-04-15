@@ -203,6 +203,10 @@
           <td>
             {% if e.category == 'valid_inquiry' %}
               <span class="badge badge-inquiry">询盘</span>
+            {% elif e.category == 'pending_ai' %}
+              <span class="badge bg-warning-subtle text-warning border border-warning-subtle">
+                <i class="bi bi-exclamation-triangle me-1"></i>待AI
+              </span>
             {% elif e.category == 'spam' %}
               <span class="badge badge-spam">垃圾</span>
             {% else %}
@@ -431,14 +435,19 @@ function markDeal(emailId, btn) {
   new bootstrap.Modal(document.getElementById('dealModal')).show();
 }
 document.getElementById('deal-confirm')?.addEventListener('click', async () => {
-  const amount = parseFloat(document.getElementById('deal-amount').value) || 0;
-  const form = new FormData();
-  form.append('status', 'won');
-  form.append('amount', amount);
-  await fetch(`/email/${_dealEmailId}/deal`, { method: 'POST', body: form });
-  bootstrap.Modal.getInstance(document.getElementById('dealModal'))?.hide();
-  _dealBtn.outerHTML = '<span class="badge bg-danger align-self-center" title="已成单"><i class="bi bi-trophy-fill"></i></span>';
-  showToast('已标记成单！');
+  try {
+    const amount = parseFloat(document.getElementById('deal-amount').value) || 0;
+    const form = new FormData();
+    form.append('status', 'won');
+    form.append('amount', amount);
+    const resp = await fetch(`/email/${_dealEmailId}/deal`, { method: 'POST', body: form });
+    if (!resp.ok) throw new Error(resp.statusText);
+    bootstrap.Modal.getInstance(document.getElementById('dealModal'))?.hide();
+    _dealBtn.outerHTML = '<span class="badge bg-danger align-self-center" title="已成单"><i class="bi bi-trophy-fill"></i></span>';
+    showToast('已标记成单！');
+  } catch(e) {
+    showToast('操作失败，请重试', 'danger');
+  }
 });
 
 // ── 实时推送：SSE 监听新草稿 ─────────────────────────────────────────────────
@@ -492,7 +501,7 @@ document.querySelectorAll('.email-row').forEach(row => {
         fetch(`/email/${id}/read`, { method: 'POST' }).then(() => {
           statusCell.innerHTML = '<span class="s-ignored">已读</span>';
           statusCell.dataset.status = 'read';
-        });
+        }).catch(() => {});
       }
     }
   });
