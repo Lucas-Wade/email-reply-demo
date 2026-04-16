@@ -454,9 +454,19 @@ _WEAK_KEYS = {
 }
 
 def _ensure_secret_key() -> str:
-    current = os.getenv("SECRET_KEY", "")
+    current = os.getenv("SECRET_KEY", "").strip()
     if current and current not in _WEAK_KEYS:
         return current
+    # 如果环境变量没有，尝试直接读 .env 文件（兼容 Docker env_file 未正确注入的情况）
+    _env_path = os.path.join(os.path.dirname(__file__), ".env")
+    if os.path.isfile(_env_path):
+        for line in open(_env_path, encoding="utf-8"):
+            line = line.strip()
+            if line.startswith("SECRET_KEY="):
+                val = line[len("SECRET_KEY="):].strip().strip('"').strip("'")
+                if val and val not in _WEAK_KEYS:
+                    os.environ["SECRET_KEY"] = val
+                    return val
     import secrets as _sec
     new_key = _sec.token_urlsafe(32)
     _env_path = os.path.join(os.path.dirname(__file__), ".env")
@@ -482,8 +492,8 @@ _dev_mode = os.getenv("DEV_MODE", "").strip() in ("1", "true", "yes")
 app.add_middleware(
     SessionMiddleware,
     secret_key=secret_key,
-    max_age=86400,                       # 1天（原7天）
-    https_only=not _dev_mode,            # 生产环境强制 HTTPS
+    max_age=86400,                       # 1天
+    https_only=False,                    # HTTP 部署兼容（Secure=True 会导致浏览器拒绝发回 cookie）
     same_site="lax",                     # lax 允许 POST→GET 跳转携带 cookie（IP 访问兼容）
 )
 
@@ -683,7 +693,7 @@ async def login_submit(
         path="/",
         httponly=True,
         samesite="lax",
-        secure=not _dev_mode,
+        secure=False,   # HTTP 部署：不设 Secure，否则浏览器拒绝在 HTTP 下发回此 cookie
     )
     return resp
 
