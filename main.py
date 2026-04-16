@@ -484,7 +484,7 @@ app.add_middleware(
     secret_key=secret_key,
     max_age=86400,                       # 1天（原7天）
     https_only=not _dev_mode,            # 生产环境强制 HTTPS
-    same_site="strict",                  # 严格同站策略
+    same_site="lax",                     # lax 允许 POST→GET 跳转携带 cookie（IP 访问兼容）
 )
 
 
@@ -622,7 +622,7 @@ async def login_submit(
         return {"id": user["id"], "email": email, "name": label, "_is_new": _is_new_account}, None
 
     import asyncio
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     session_user, error = await loop.run_in_executor(None, _do_login)
 
     if error:
@@ -636,6 +636,7 @@ async def login_submit(
     is_new_account = session_user.pop("_is_new", False)
     request.session["user"] = session_user
     request.session["csrf_token"] = _secrets.token_hex(32)
+    print(f"[LOGIN] session 已写入，user={session_user['email']}, is_new={is_new_account}")
 
     # 仅在首次添加该账号时执行初始邮件同步，避免重启重新登录时重复插入历史邮件
     if is_new_account:
@@ -662,7 +663,12 @@ async def login_submit(
         import threading
         threading.Thread(target=_init_inbox_sync, daemon=True).start()
 
-    return RedirectResponse("/", status_code=303)
+    # 用 meta-refresh 替代 303 redirect，确保 Set-Cookie 在浏览器端完全写入后再导航
+    # （纯 IP 访问时，部分浏览器对 SameSite 的处理可能导致 303 redirect 时 cookie 未能及时发送）
+    return HTMLResponse(
+        '<html><head><meta http-equiv="refresh" content="0;url=/"></head>'
+        '<body><p>登录成功，正在跳转…</p></body></html>'
+    )
 
 
 @app.get("/logout")
