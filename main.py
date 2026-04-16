@@ -215,7 +215,7 @@ def _handle_one_email(raw: dict):
             received_at=raw["received_at"], body_text=raw["body_text"],
             language="unknown", category="spam",
             classify_layer=0, classify_score=None, classify_criteria=None,
-            account_email=account_email,
+            account_email=account_email, body_html=raw.get("body_html"),
         )
         return
 
@@ -240,6 +240,7 @@ def _handle_one_email(raw: dict):
             language="unknown", category="pending_ai",
             classify_layer=0, classify_score=None, classify_criteria=None,
             thread_email_id=thread_email_id, account_email=account_email,
+            body_html=raw.get("body_html"),
         )
         return
     else:
@@ -261,6 +262,7 @@ def _handle_one_email(raw: dict):
             language="unknown", category=category,
             classify_layer=layer, classify_score=score, classify_criteria=criteria,
             thread_email_id=thread_email_id, account_email=account_email,
+            body_html=raw.get("body_html"),
         )
         return
 
@@ -284,6 +286,7 @@ def _handle_one_email(raw: dict):
         account_email=account_email,
         draft_subject=draft_subject, draft_body=draft_body,
         quoted_products=matched, parsed_inquiry=parsed,
+        body_html=raw.get("body_html"),
     )
     logger.info(f"[草稿已生成] email_id={email_id} from={_log_sender(raw['sender'])} subject={_log_subject(raw['subject'])}")
     _notify_new_draft(raw["subject"], raw["sender"], email_id)
@@ -673,7 +676,7 @@ async def login_submit(
                         uid=uid, subject=raw["subject"], sender=raw["sender"],
                         received_at=raw["received_at"], body_text=raw["body_text"],
                         language="unknown", category="other",
-                        account_email=email,
+                        account_email=email, body_html=raw.get("body_html"),
                     )
                 print(f"[LOGIN] 首次登录，已存入最近 {len(recents)} 封邮件")
             except Exception as e:
@@ -756,6 +759,37 @@ async def demo_load():
     """加载示例数据（仅首次使用时）"""
     n = db.load_demo_data()
     return RedirectResponse(f"/?demo={n}", status_code=303)
+
+
+@app.get("/email/{email_id}/body", response_class=HTMLResponse)
+async def email_body_html(email_id: int, request: Request):
+    """返回邮件原始 HTML 正文（供 iframe 沙箱渲染）。
+    已处理 cid: 内联图片 → base64 data URI；CSP 头禁止脚本执行。"""
+    if not get_session_user(request):
+        return HTMLResponse("Forbidden", status_code=403)
+    record = db.get_email(email_id)
+    if not record:
+        return HTMLResponse("Not found", status_code=404)
+    html = record.get("body_html") or ""
+    if not html:
+        # 无 HTML 正文时降级为带样式的纯文本
+        import html as _he
+        text = _he.escape(record.get("body_text") or "（无正文）")
+        html = (
+            "<html><body style='font-family:sans-serif;font-size:14px;"
+            "line-height:1.6;white-space:pre-wrap;padding:12px'>"
+            f"{text}</body></html>"
+        )
+    resp = HTMLResponse(html)
+    resp.headers["Content-Security-Policy"] = (
+        "script-src 'none'; object-src 'none'; "
+        "img-src 'self' https: data: cid:; "
+        "style-src 'unsafe-inline' https:; "
+        "font-src https: data:; "
+        "frame-ancestors 'self'"
+    )
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    return resp
 
 
 @app.post("/email/{email_id}/deal")

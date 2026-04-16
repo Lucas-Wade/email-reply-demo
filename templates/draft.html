@@ -57,7 +57,15 @@
           </dd>
           {% endif %}
         </dl>
+        {% if draft.body_html %}
+        <iframe src="/email/{{ draft.email_id }}/body"
+                sandbox="allow-popups allow-popups-to-escape-sandbox"
+                style="width:100%;min-height:260px;max-height:520px;border:1px solid #e9ecef;border-radius:4px;background:#fff"
+                loading="lazy"
+                title="邮件原文预览"></iframe>
+        {% else %}
         <div class="original-mail">{{ draft.body_text }}</div>
+        {% endif %}
       </div>
     </div>
 

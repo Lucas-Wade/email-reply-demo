@@ -59,6 +59,7 @@ def init_db():
             sender           TEXT,
             received_at      TEXT,
             body_text        TEXT,
+            body_html        TEXT,
             language         TEXT,
             category         TEXT,
             status           TEXT DEFAULT 'new',
@@ -131,6 +132,7 @@ def init_db():
     for col, coltype in [
         ("intent_score",    "INTEGER"),
         ("thread_email_id", "INTEGER"),
+        ("body_html",       "TEXT"),
     ]:
         try:
             conn.execute(f"ALTER TABLE emails ADD COLUMN {col} {coltype}")
@@ -383,16 +385,17 @@ def find_thread_parent(subject: str) -> int | None:
 
 def save_email(uid, subject, sender, received_at, body_text, language, category,
                classify_layer=None, classify_score=None, classify_criteria=None,
-               intent_score=None, thread_email_id=None, account_email=None):
+               intent_score=None, thread_email_id=None, account_email=None,
+               body_html=None):
     conn = get_conn()
     try:
         conn.execute(
             """INSERT OR IGNORE INTO emails
-               (uid, subject, sender, received_at, body_text, language, category,
+               (uid, subject, sender, received_at, body_text, body_html, language, category,
                 classify_layer, classify_score, classify_criteria,
                 intent_score, thread_email_id, account_email)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (uid, subject, sender, received_at, body_text, language, category,
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (uid, subject, sender, received_at, body_text, body_html, language, category,
              classify_layer, classify_score,
              json.dumps(classify_criteria, ensure_ascii=False) if classify_criteria else None,
              intent_score, thread_email_id, account_email),
@@ -423,7 +426,8 @@ def save_draft(email_id, subject, body, quoted_products, parsed_inquiry=None):
 def save_email_with_draft(uid, subject, sender, received_at, body_text, language,
                           classify_layer, classify_score, classify_criteria,
                           intent_score, thread_email_id, account_email,
-                          draft_subject, draft_body, quoted_products, parsed_inquiry):
+                          draft_subject, draft_body, quoted_products, parsed_inquiry,
+                          body_html=None):
     """
     原子写入邮件 + 草稿 + 状态更新，三步在同一个连接的事务中完成。
     若任意步骤失败，全部回滚，避免出现"邮件已保存但草稿不存在"的孤儿记录。
@@ -434,11 +438,11 @@ def save_email_with_draft(uid, subject, sender, received_at, body_text, language
         conn.execute("BEGIN")
         cur = conn.execute(
             """INSERT OR IGNORE INTO emails
-               (uid, subject, sender, received_at, body_text, language, category,
+               (uid, subject, sender, received_at, body_text, body_html, language, category,
                 classify_layer, classify_score, classify_criteria,
                 intent_score, thread_email_id, account_email, status)
-               VALUES (?, ?, ?, ?, ?, ?, 'valid_inquiry', ?, ?, ?, ?, ?, ?, 'new')""",
-            (uid, subject, sender, received_at, body_text, language,
+               VALUES (?, ?, ?, ?, ?, ?, ?, 'valid_inquiry', ?, ?, ?, ?, ?, ?, 'new')""",
+            (uid, subject, sender, received_at, body_text, body_html, language,
              classify_layer, classify_score,
              json.dumps(classify_criteria, ensure_ascii=False) if classify_criteria else None,
              intent_score, thread_email_id, account_email),
@@ -528,7 +532,7 @@ def get_draft(draft_id):
     try:
         row = conn.execute(
             """SELECT d.*, e.sender, e.subject AS original_subject,
-                      e.body_text, e.language, e.received_at,
+                      e.body_text, e.body_html, e.language, e.received_at,
                       e.intent_score, e.thread_email_id, e.account_email
                FROM drafts d JOIN emails e ON d.email_id = e.id
                WHERE d.id=?""",
@@ -545,7 +549,7 @@ def get_draft_by_email_id(email_id: int):
     try:
         row = conn.execute(
             """SELECT d.*, e.sender, e.subject AS original_subject,
-                      e.body_text, e.language, e.received_at,
+                      e.body_text, e.body_html, e.language, e.received_at,
                       e.intent_score, e.thread_email_id, e.account_email
                FROM drafts d JOIN emails e ON d.email_id = e.id
                WHERE d.email_id=?

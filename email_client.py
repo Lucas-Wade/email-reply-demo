@@ -51,6 +51,47 @@ def _extract_images(msg) -> list[dict]:
     return images
 
 
+import base64 as _b64
+
+
+def _extract_html_with_cid(msg) -> str | None:
+    """
+    提取 HTML 正文，并将 cid:xxx 内联图片替换为 base64 data URI，
+    确保在浏览器 iframe 中可直接渲染而不丢失图片。
+    若邮件无 HTML part 则返回 None（调用方回退到纯文本）。
+    """
+    html_parts: list[str] = []
+    cid_map:    dict[str, str] = {}   # content-id → data: URI
+
+    for part in msg.walk():
+        ctype = part.get_content_type()
+        cid   = part.get("Content-ID", "").strip("<>")
+
+        if ctype == "text/html":
+            charset = part.get_content_charset() or "utf-8"
+            payload = part.get_payload(decode=True)
+            if payload:
+                html_parts.append(payload.decode(charset, errors="replace"))
+
+        elif ctype.startswith("image/") and cid:
+            raw_bytes = part.get_payload(decode=True)
+            if raw_bytes and len(raw_bytes) <= _MAX_IMAGE_BYTES:
+                b64 = _b64.b64encode(raw_bytes).decode("ascii")
+                cid_map[cid] = f"data:{ctype};base64,{b64}"
+
+    if not html_parts:
+        return None
+
+    html = "\n".join(html_parts)
+    # 将所有 cid:xxx 替换为对应的 data URI；无匹配时保留原样（浏览器会显示破图）
+    html = re.sub(
+        r'cid:([^"\'>\s]+)',
+        lambda m: cid_map.get(m.group(1), m.group(0)),
+        html,
+    )
+    return html
+
+
 def _strip_html(raw_html: str) -> str:
     """去除 HTML 标签，将实体转义还原为纯文本。"""
     # 把常见块级标签转换为换行，避免所有文字挤在一行
@@ -150,6 +191,7 @@ def fetch_unread_emails(max_count=10, creds: dict = None):
                 received_at = date_str
 
             body_text = _extract_text(msg)
+            body_html = _extract_html_with_cid(msg)   # HTML 预览（cid: 已转 data URI）
 
             results.append({
                 "uid": uid.decode(),
@@ -157,6 +199,7 @@ def fetch_unread_emails(max_count=10, creds: dict = None):
                 "sender": sender,
                 "received_at": received_at,
                 "body_text": body_text,
+                "body_html": body_html,
                 "images": _extract_images(msg),   # 内嵌图片，供 AI 视觉识别
             })
 
@@ -230,12 +273,29 @@ def fetch_recent_emails(max_count=100, creds: dict = None):
                                   mark_seen=False, reverse=True))
         for msg in msgs:
             received_at = msg.date.isoformat() if msg.date else ""
+            # 处理 HTML 正文：用 imap-tools 的 attachments 替换 cid: 内联图片
+            body_html: str | None = msg.html or None
+            if body_html:
+                cid_map: dict[str, str] = {}
+                for att in (msg.attachments or []):
+                    cid = (att.content_id or "").strip("<>")
+                    if cid and att.content_type.startswith("image/") and att.payload:
+                        if len(att.payload) <= _MAX_IMAGE_BYTES:
+                            b64 = _b64.b64encode(att.payload).decode("ascii")
+                            cid_map[cid] = f"data:{att.content_type};base64,{b64}"
+                if cid_map:
+                    body_html = re.sub(
+                        r'cid:([^"\'>\s]+)',
+                        lambda m: cid_map.get(m.group(1), m.group(0)),
+                        body_html,
+                    )
             all_results.append({
                 "uid": f"INBOX:{msg.uid}",
                 "subject": msg.subject or "(no subject)",
                 "sender": msg.from_ or "",
                 "received_at": received_at,
-                "body_text": msg.text or msg.html or "",
+                "body_text": msg.text or (body_html and _strip_html(body_html)) or "",
+                "body_html": body_html,
             })
 
     all_results.sort(key=lambda x: x["received_at"] or "", reverse=True)
