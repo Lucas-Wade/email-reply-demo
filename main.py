@@ -634,9 +634,18 @@ async def login_submit(
         )
     _login_attempts.pop(client_ip, None)  # 登录成功，清除该 IP 的失败记录
     is_new_account = session_user.pop("_is_new", False)
-    request.session["user"] = session_user
-    request.session["csrf_token"] = _secrets.token_hex(32)
-    print(f"[LOGIN] session 已写入，user={session_user['email']}, is_new={is_new_account}")
+    new_csrf = _secrets.token_hex(32)
+
+    # ── 直接在 Response 上签名写 cookie，绕过 BaseHTTPMiddleware 的 scope 传递问题 ──
+    # Starlette SessionMiddleware 的 cookie 格式：
+    #   base64(json(session_dict)) 经 itsdangerous.TimestampSigner 签名
+    # 这里手动复现，确保 Set-Cookie 出现在响应头里。
+    from base64 import b64encode as _b64enc
+    from itsdangerous import TimestampSigner as _TS
+    _payload = {"user": session_user, "csrf_token": new_csrf}
+    _cookie_data = _b64enc(json.dumps(_payload, separators=(",", ":")).encode("utf-8"))
+    _cookie_val  = _TS(secret_key).sign(_cookie_data).decode("utf-8")
+    print(f"[LOGIN] cookie 已签名，user={session_user['email']}, is_new={is_new_account}")
 
     # 仅在首次添加该账号时执行初始邮件同步，避免重启重新登录时重复插入历史邮件
     if is_new_account:
@@ -663,12 +672,20 @@ async def login_submit(
         import threading
         threading.Thread(target=_init_inbox_sync, daemon=True).start()
 
-    # 用 meta-refresh 替代 303 redirect，确保 Set-Cookie 在浏览器端完全写入后再导航
-    # （纯 IP 访问时，部分浏览器对 SameSite 的处理可能导致 303 redirect 时 cookie 未能及时发送）
-    return HTMLResponse(
+    resp = HTMLResponse(
         '<html><head><meta http-equiv="refresh" content="0;url=/"></head>'
         '<body><p>登录成功，正在跳转…</p></body></html>'
     )
+    resp.set_cookie(
+        key="session",
+        value=_cookie_val,
+        max_age=86400,
+        path="/",
+        httponly=True,
+        samesite="lax",
+        secure=not _dev_mode,
+    )
+    return resp
 
 
 @app.get("/logout")
