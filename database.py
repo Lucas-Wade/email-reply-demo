@@ -1208,7 +1208,11 @@ def get_setup_status() -> dict:
     from dotenv import load_dotenv
     load_dotenv()
     issues = []
-    if not os.getenv("IMAP_HOST") or not os.getenv("IMAP_USER"):
+    # 优先检查数据库里是否有活跃账号（Web 登录后写入），其次才看环境变量（.env 单账号模式）
+    has_account = bool(list_email_accounts(active_only=True)) or (
+        os.getenv("IMAP_HOST") and os.getenv("IMAP_USER")
+    )
+    if not has_account:
         issues.append(("邮箱未配置", "前往设置配置企业邮箱账号，系统才能自动收信", "/settings"))
     if not os.getenv("QIANWEN_API_KEY") and not os.getenv("ZHIPU_API_KEY"):
         issues.append(("AI 接口未配置", "在 .env 文件中填入 QIANWEN_API_KEY 或 ZHIPU_API_KEY", "/help#env"))
